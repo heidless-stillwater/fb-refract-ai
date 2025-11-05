@@ -66,6 +66,8 @@ const transformImageSchema = z.object({
 });
 
 export async function getTransformedImage(formData: FormData) {
+  // The 'test mode' is not needed here because the logic is now handled in the client
+  // and this action is only for the 'real' transformation.
   try {
     const validatedData = transformImageSchema.safeParse({
       photoDataUri: formData.get('photoDataUri'),

@@ -7,14 +7,14 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, CornerDownRight } from 'lucide-react';
 
 export type TransformationHistoryItem = {
   id: string;
   originalUrl: string;
   transformedUrl: string;
   transformationType: string;
-  prompt?: string;
+  prompt?: string | null;
   originalHint: string;
   transformedHint: string;
 };
@@ -31,11 +31,11 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
   return (
     <div className="mt-16">
       <h2 className="text-3xl font-headline font-bold mb-6 text-center md:text-left">
-        Transformation History
+        Your Recent Transformations
       </h2>
       <div className="grid gap-8 md:grid-cols-1">
         {history.map(item => (
-          <Card key={item.id} className="overflow-hidden shadow-lg">
+          <Card key={item.id} className="overflow-hidden shadow-lg hover:shadow-primary/20 transition-shadow duration-300">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="font-headline capitalize">
@@ -43,17 +43,17 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                 </CardTitle>
                 {item.prompt && (
                   <Badge variant="secondary" className="text-xs">
-                    Prompt Used
+                    Custom Prompt Used
                   </Badge>
                 )}
               </div>
               {item.prompt && (
-                <CardDescription className="italic text-muted-foreground pt-1">
-                  "{item.prompt}"
+                <CardDescription className="italic text-muted-foreground pt-1 flex gap-2 items-center">
+                  <CornerDownRight size={16} /> "{item.prompt}"
                 </CardDescription>
               )}
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4 items-center">
+            <CardContent className="grid md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-center text-muted-foreground">
                   Original
@@ -64,7 +64,7 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                     alt="Original image for transformation"
                     width={600}
                     height={400}
-                    className="object-cover w-full h-auto aspect-[16/10] rounded-md"
+                    className="object-cover w-full h-auto aspect-video rounded-md"
                     data-ai-hint={item.originalHint}
                   />
                 </div>
@@ -85,7 +85,7 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                     alt="Transformed image"
                     width={600}
                     height={400}
-                    className="object-cover w-full h-auto aspect-[16/10] rounded-md"
+                    className="object-cover w-full h-auto aspect-video rounded-md"
                     data-ai-hint={item.transformedHint}
                   />
                 </div>

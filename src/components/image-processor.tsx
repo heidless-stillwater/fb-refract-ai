@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -12,192 +12,376 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useUser } from '@/firebase';
-import {
-  getStorage,
-  ref,
-  uploadBytesResumable,
-  getDownloadURL,
-} from 'firebase/storage';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { useImageTransformations } from '@/hooks/use-image-transformations';
+import {
+  Loader2,
+  Upload,
+  Sparkles,
+  Wand2,
+  ChevronDown,
+  RefreshCw,
+  Info,
+} from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { HistoryGallery } from './history-gallery';
 
-const styleOptions = [
-  'gothic',
-  'art deco',
-  'minimalistic',
-  'van gogh style',
-  'rembrandt style',
-  'pop',
-  'cosy',
+const transformationOptions = [
+  {
+    value: 'modernize_interior',
+    label: 'Modernize Interior',
+    requiresPrompt: false,
+  },
+  {
+    value: 'add_houseplants',
+    label: 'Add Houseplants',
+    requiresPrompt: false,
+  },
+  {
+    value: 'bohemian_style',
+    label: 'Bohemian Style',
+    requiresPrompt: false,
+  },
+  {
+    value: 'minimalist_style',
+    label: 'Minimalist Style',
+    requiresPrompt: false,
+  },
+  {
+    value: 'professional_style',
+    label: 'Professional Lighting',
+    requiresPrompt: false,
+  },
+  { value: 'custom', label: 'Custom Prompt', requiresPrompt: true },
 ];
 
 export default function ImageProcessor() {
-  const [selectedStyle, setSelectedStyle] = useState<string>('art deco');
-  const [prompt, setPrompt] = useState<string>('art deco');
-  const [isTestMode, setIsTestMode] = useState<boolean>(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [transformedUrl, setTransformedUrl] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [selectedTransform, setSelectedTransform] = useState(
+    transformationOptions[0]
+  );
+  const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [isFetchingRecommendations, setIsFetchingRecommendations] =
+    useState(false);
 
-  const { user } = useUser();
+  const {
+    history,
+    isProcessing,
+    progress,
+    getRecommendations,
+    transformImage,
+  } = useImageTransformations();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
-  useEffect(() => {
-    setPrompt(selectedStyle);
-  }, [selectedStyle]);
+  const selectedOption = useMemo(
+    () =>
+      transformationOptions.find(
+        opt => opt.value === selectedTransform.value
+      )!,
+    [selectedTransform]
+  );
 
-  const handleStyleChange = (value: string) => {
-    setSelectedStyle(value);
-  };
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      setTransformedUrl(null);
+      setRecommendations([]);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
+    setTransformedUrl(null); // Clear previous transformation
+    fetchRecommendations(selectedFile);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedFile]);
+
+  useEffect(() => {
+    if (!selectedOption.requiresPrompt) {
+      setPrompt('');
+    }
+  }, [selectedOption]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      setSelectedFile(event.target.files[0]);
-    } else {
-      setSelectedFile(null);
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 4 * 1024 * 1024) {
+        toast({
+          variant: 'destructive',
+          title: 'File Too Large',
+          description: 'Please select an image smaller than 4MB.',
+        });
+        return;
+      }
+      setSelectedFile(file);
     }
   };
 
-  const handleUpload = async () => {
+  const fetchRecommendations = async (file: File) => {
+    if (!file) return;
+    setIsFetchingRecommendations(true);
+    setRecommendations([]);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const dataUri = reader.result as string;
+        const recs = await getRecommendations(dataUri);
+        setRecommendations(recs);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not get recommendations',
+        description:
+          error instanceof Error ? error.message : 'An unknown error occurred.',
+      });
+    } finally {
+      setIsFetchingRecommendations(false);
+    }
+  };
+
+  const handleTransform = async () => {
     if (!selectedFile) {
       toast({
         variant: 'destructive',
-        title: 'No file selected',
-        description: 'Please select an image file to upload.',
+        title: 'No Image Selected',
+        description: 'Please upload an image to transform.',
       });
       return;
     }
-
+    if (selectedOption.requiresPrompt && !prompt) {
+      toast({
+        variant: 'destructive',
+        title: 'Prompt Required',
+        description: 'A text prompt is required for this transformation.',
+      });
+      return;
+    }
     if (!user) {
       toast({
         variant: 'destructive',
-        title: 'Authentication Required',
-        description: 'You must be logged in to upload an image.',
+        title: 'Not Logged In',
+        description: 'Please log in to transform images.',
       });
       return;
     }
 
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    const storage = getStorage();
-    const filePath = `user-uploads/${
-      user.uid
-    }/${Date.now()}-original-${selectedFile.name}`;
-    const storageRef = ref(storage, filePath);
-    const uploadTask = uploadBytesResumable(storageRef, selectedFile);
-
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(progress);
-      },
-      (error) => {
-        console.error('Upload failed:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Upload Failed',
-          description: `An error occurred while uploading: ${error.message}`,
-        });
-        setIsUploading(false);
-        setUploadProgress(null);
-      },
-      async () => {
-        try {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          toast({
-            title: 'Upload Successful',
-            description: `Image uploaded and available at: ${downloadURL}`,
-          });
-          // Here you would typically save the downloadURL to Firestore
-          // or use it to trigger the AI transformation.
-        } catch (error) {
-          console.error('Failed to get download URL:', error);
-          toast({
-            variant: 'destructive',
-            title: 'Processing Failed',
-            description: 'Failed to get the image URL after upload.',
-          });
-        } finally {
-          setIsUploading(false);
-          setUploadProgress(null);
-        }
-      }
-    );
+    try {
+      setTransformedUrl(null);
+      const resultDataUri = await transformImage({
+        file: selectedFile,
+        transformType: selectedOption.value,
+        prompt,
+        requiresPrompt: selectedOption.requiresPrompt,
+        label: selectedOption.label,
+      });
+      setTransformedUrl(resultDataUri);
+      toast({
+        title: 'Transformation Complete!',
+        description: 'Your image has been successfully transformed.',
+      });
+    } catch (error) {
+      // The hook handles the error toast
+    }
   };
 
+  const canTransform = selectedFile && !isProcessing && !isUserLoading;
+
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="file-upload">Image File</Label>
-        <Input
-          id="file-upload"
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          disabled={isUploading}
-        />
-      </div>
+    <div className="space-y-16">
+      <Card className="shadow-2xl overflow-hidden">
+        <CardHeader>
+          <CardTitle className="font-headline text-3xl flex items-center gap-2">
+            <Wand2 className="text-primary" /> AI Image Transformer
+          </CardTitle>
+          <CardDescription>
+            Upload an image of a room and watch our AI redecorate it based on
+            your chosen style.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <div className="grid md:grid-cols-2 gap-8 items-start">
+            {/* Input Column */}
+            <div className="space-y-6">
+              <div
+                className="relative border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary transition-colors min-h-[250px] flex flex-col items-center justify-center bg-muted/20"
+                onClick={() => document.getElementById('file-upload')?.click()}
+              >
+                <Input
+                  id="file-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  disabled={isProcessing}
+                />
+                {previewUrl ? (
+                  <div className="relative w-full h-full">
+                    <Image
+                      src={previewUrl}
+                      alt="Selected preview"
+                      layout="fill"
+                      objectFit="contain"
+                      className="rounded-md"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-muted-foreground">
+                    <Upload className="h-12 w-12 mb-4" />
+                    <span className="font-semibold">Click to upload an image</span>
+                    <span className="text-sm">PNG, JPG, GIF up to 4MB</span>
+                  </div>
+                )}
+              </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="style-select">Style</Label>
-        <Select
-          value={selectedStyle}
-          onValueChange={handleStyleChange}
-          disabled={isUploading}
-        >
-          <SelectTrigger id="style-select">
-            <SelectValue placeholder="Select a style" />
-          </SelectTrigger>
-          <SelectContent>
-            {styleOptions.map((style) => (
-              <SelectItem key={style} value={style} className="capitalize">
-                {style}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+              <div className="space-y-2">
+                <Label htmlFor="transform-select">Transformation Style</Label>
+                <Select
+                  value={selectedTransform.value}
+                  onValueChange={value =>
+                    setSelectedTransform(
+                      transformationOptions.find(opt => opt.value === value)!
+                    )
+                  }
+                  disabled={!canTransform}
+                >
+                  <SelectTrigger id="transform-select">
+                    <SelectValue placeholder="Select a style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transformationOptions.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="prompt-input">Prompt</Label>
-        <Input
-          id="prompt-input"
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          disabled={isUploading}
-        />
-      </div>
+              {selectedOption.requiresPrompt && (
+                <div className="space-y-2">
+                  <Label htmlFor="prompt-input">Custom Prompt</Label>
+                  <Textarea
+                    id="prompt-input"
+                    value={prompt}
+                    onChange={e => setPrompt(e.target.value)}
+                    placeholder="e.g., 'A futuristic room with neon lights'"
+                    disabled={!canTransform}
+                    className="h-24"
+                  />
+                </div>
+              )}
 
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="test-mode"
-          checked={isTestMode}
-          onCheckedChange={(checked) => setIsTestMode(checked as boolean)}
-          disabled={isUploading}
-        />
-        <Label htmlFor="test-mode" className="font-normal">
-          Test mode
-        </Label>
-      </div>
+              {recommendations.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="flex items-center gap-2">
+                    <Sparkles className="text-accent" /> AI Recommendations
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {recommendations.map(rec => (
+                      <Badge
+                        key={rec}
+                        variant="secondary"
+                        className="cursor-pointer hover:bg-primary/20"
+                        onClick={() => {
+                          setSelectedTransform({
+                            value: 'custom',
+                            label: 'Custom Prompt',
+                            requiresPrompt: true,
+                          });
+                          setPrompt(rec);
+                        }}
+                      >
+                        {rec}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+               {isFetchingRecommendations && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin" /> Getting AI recommendations...</div>}
+
+
+              <Button
+                onClick={handleTransform}
+                disabled={!canTransform}
+                className="w-full"
+                size="lg"
+              >
+                {isProcessing ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Wand2 />
+                )}
+                Transform Image
+              </Button>
+
+              {isProcessing && (
+                <div className="space-y-2">
+                   <Progress value={progress} className="w-full" />
+                   <p className="text-sm text-muted-foreground text-center animate-pulse">
+                     AI is thinking... this can take up to 30 seconds.
+                   </p>
+                </div>
+              )}
+            </div>
+
+            {/* Output Column */}
+            <div className="relative border-2 border-border rounded-lg min-h-[400px] flex items-center justify-center bg-muted/20 overflow-hidden">
+              {isProcessing && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10">
+                  <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                  <p className="mt-4 text-lg font-semibold text-muted-foreground">
+                    Transforming...
+                  </p>
+                </div>
+              )}
+              {!transformedUrl && !isProcessing && (
+                <div className="text-center text-muted-foreground p-8">
+                   <Sparkles className="h-12 w-12 mx-auto mb-4" />
+                   <h3 className="font-semibold text-lg">Your transformed image will appear here.</h3>
+                   <p className="text-sm">Upload an image and choose a style to get started.</p>
+                </div>
+              )}
+              {transformedUrl && (
+                <Image
+                  src={transformedUrl}
+                  alt="Transformed image"
+                  layout="fill"
+                  objectFit="contain"
+                  className="rounded-md"
+                />
+              )}
+            </div>
+          </div>
+            {!user && !isUserLoading && (
+                <Alert variant="destructive">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>Anonymous Mode</AlertTitle>
+                  <AlertDescription>
+                    You are not signed in. Your transformation history will not be saved. Sign up to save your creations.
+                  </AlertDescription>
+                </Alert>
+            )}
+        </CardContent>
+      </Card>
       
-      {uploadProgress !== null && (
-        <Progress value={uploadProgress} className="w-full" />
-      )}
-
-      <div>
-        <Button onClick={handleUpload} disabled={!selectedFile || isUploading}>
-          {isUploading ? (
-            <Loader2 className="animate-spin" />
-          ) : null}
-          {isUploading ? 'Uploading...' : 'Upload Images'}
-        </Button>
-      </div>
+      {user && <HistoryGallery history={history} />}
     </div>
   );
 }

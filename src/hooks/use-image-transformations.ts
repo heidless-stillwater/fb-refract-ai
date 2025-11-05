@@ -163,25 +163,28 @@ export function useImageTransformations() {
         );
       }
 
-      const originalFilePath = `dth-storage/${user!.uid}/${new Date().toISOString()}_original_${file.name}`;
-      const transformedBlob = dataUriToBlob(transformResult.transformedPhotoDataUri);
-      const transformedFilePath = `dth-storage/${user!.uid}/${new Date().toISOString()}_transformed_${file.name}`;
-      
-      setProgress(60);
-      const [originalImageURL, transformedImageURL] = await Promise.all([
-        uploadFile(file, originalFilePath),
-        uploadFile(transformedBlob, transformedFilePath),
-      ]);
-      setProgress(90);
+      // We only save to storage and DB if the user is logged in
+      if (user) {
+        const originalFilePath = `dth-storage/${user!.uid}/${new Date().toISOString()}_original_${file.name}`;
+        const transformedBlob = dataUriToBlob(transformResult.transformedPhotoDataUri);
+        const transformedFilePath = `dth-storage/${user!.uid}/${new Date().toISOString()}_transformed_${file.name}`;
+        
+        setProgress(60);
+        const [originalImageURL, transformedImageURL] = await Promise.all([
+          uploadFile(file, originalFilePath),
+          uploadFile(transformedBlob, transformedFilePath),
+        ]);
+        setProgress(90);
 
-      await addDoc(collection(firestore, 'transformedImages'), {
-        userId: user!.uid,
-        originalImageURL,
-        transformedImageURL,
-        transformationType: label,
-        transformationParameters: requiresPrompt ? finalPrompt : null,
-        createdAt: new Date(),
-      });
+        await addDoc(collection(firestore, 'transformedImages'), {
+          userId: user!.uid,
+          originalImageURL,
+          transformedImageURL,
+          transformationType: label,
+          transformationParameters: requiresPrompt ? finalPrompt : null,
+          createdAt: new Date(),
+        });
+      }
       setProgress(100);
 
       return transformResult.transformedPhotoDataUri;
