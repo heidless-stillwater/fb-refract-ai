@@ -32,7 +32,6 @@ import {
   File as FileIcon,
   X,
   Download,
-  ExternalLink,
 } from 'lucide-react';
 import {
   useFirestore,
@@ -52,6 +51,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAuthGate } from '@/hooks/use-auth-gate';
 import { Progress } from '@/components/ui/progress';
 import Image from 'next/image';
+import { downloadImage } from '@/app/actions';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -74,30 +74,50 @@ const contactFormSchema = z.object({
 type ContactFormValues = z.infer<typeof contactFormSchema>;
 
 const DownloadableAttachment = ({ url, filename }: { url: string; filename: string }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
   const isImage = /\.(jpg|jpeg|png|gif)$/i.test(filename);
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const dataUri = await downloadImage({ imageUrl: url });
+      const link = document.createElement('a');
+      link.href = dataUri;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: error instanceof Error ? error.message : 'Could not download the file.',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
 
   if (isImage) {
     return (
       <div className="relative w-48 h-32 rounded-lg overflow-hidden border group">
         <Image src={url} alt={filename} layout="fill" objectFit="cover" />
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
+        <div
           className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+          onClick={handleDownload}
         >
-          <ExternalLink className="w-6 h-6" />
-        </a>
+          {isDownloading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
+        </div>
       </div>
     );
   }
 
   return (
-    <Button asChild variant="outline" size="sm">
-      <a href={url} target="_blank" rel="noopener noreferrer">
-        <Download className="mr-2 h-4 w-4" />
-        {filename}
-      </a>
+    <Button onClick={handleDownload} disabled={isDownloading} variant="outline" size="sm">
+       {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+       {isDownloading ? 'Downloading...' : filename}
     </Button>
   );
 };

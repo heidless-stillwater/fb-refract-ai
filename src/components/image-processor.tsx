@@ -23,7 +23,6 @@ import {
   Wand2,
   Download,
   Info,
-  ExternalLink,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -36,7 +35,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { HistoryGallery } from './history-gallery';
-import Link from 'next/link';
+import { downloadImage } from '@/app/actions';
 
 const transformationOptions = [
   {
@@ -67,7 +66,31 @@ const transformationOptions = [
   { value: 'custom', label: 'Custom Prompt', requiresPrompt: true },
 ];
 
-const DownloadableImage = ({ src, alt }: { src: string; alt: string; }) => {
+const DownloadableImage = ({ src, alt, filename }: { src: string; alt: string; filename: string }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const dataUri = await downloadImage({ imageUrl: src });
+      const link = document.createElement('a');
+      link.href = dataUri;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: error instanceof Error ? error.message : 'Could not download the file.',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="relative w-full h-full min-h-[250px] group">
       <Image
@@ -77,14 +100,12 @@ const DownloadableImage = ({ src, alt }: { src: string; alt: string; }) => {
         objectFit="contain"
         className="rounded-md"
       />
-      <a
-        href={src}
-        target="_blank"
-        rel="noopener noreferrer"
+      <div
         className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md cursor-pointer"
+        onClick={handleDownload}
       >
-        <ExternalLink className="w-8 h-8" />
-      </a>
+        {isDownloading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Download className="w-8 h-8" />}
+      </div>
     </div>
   );
 };
@@ -251,7 +272,6 @@ export default function ImageProcessor() {
             <div className="space-y-6">
               <div
                 className="relative border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary transition-colors min-h-[250px] flex flex-col items-center justify-center bg-muted/20"
-                onClick={() => document.getElementById('file-upload')?.click()}
               >
                 <Input
                   id="file-upload"
@@ -265,13 +285,14 @@ export default function ImageProcessor() {
                   <DownloadableImage
                     src={previewUrl}
                     alt="Selected preview"
+                    filename={selectedFile.name}
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-muted-foreground">
+                  <label htmlFor='file-upload' className="flex flex-col items-center justify-center text-muted-foreground cursor-pointer">
                     <Upload className="h-12 w-12 mb-4" />
                     <span className="font-semibold">Click to upload an image</span>
                     <span className="text-sm">PNG, JPG, GIF up to 4MB</span>
-                  </div>
+                  </label>
                 )}
               </div>
 
@@ -387,6 +408,7 @@ export default function ImageProcessor() {
                  <DownloadableImage
                     src={transformedUrl}
                     alt="Transformed image"
+                    filename={`transformed-${selectedFile.name}`}
                   />
               )}
             </div>

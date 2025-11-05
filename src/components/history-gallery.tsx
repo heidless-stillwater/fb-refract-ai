@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import Image from 'next/image';
 import {
@@ -8,7 +10,9 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, CornerDownRight, ExternalLink } from 'lucide-react';
+import { ArrowRight, CornerDownRight, Download, Loader2 } from 'lucide-react';
+import { downloadImage } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 export type TransformationHistoryItem = {
   id: string;
@@ -25,6 +29,30 @@ type HistoryGalleryProps = {
 };
 
 const DownloadableHistoryImage = ({ src, alt, hint }: { src: string; alt: string; hint: string }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const dataUri = await downloadImage({ imageUrl: src });
+      const link = document.createElement('a');
+      link.href = dataUri;
+      link.download = alt;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: error instanceof Error ? error.message : 'Could not download the file.',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="rounded-lg overflow-hidden border-2 border-transparent relative group">
       <Image
@@ -35,14 +63,12 @@ const DownloadableHistoryImage = ({ src, alt, hint }: { src: string; alt: string
         className="object-cover w-full h-auto aspect-video rounded-md"
         data-ai-hint={hint}
       />
-      <a
-        href={src}
-        target="_blank"
-        rel="noopener noreferrer"
+      <div
         className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md cursor-pointer"
+        onClick={handleDownload}
       >
-        <ExternalLink className="w-8 h-8" />
-      </a>
+        {isDownloading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Download className="w-8 h-8" />}
+      </div>
     </div>
   );
 };
