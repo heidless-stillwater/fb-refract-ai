@@ -22,6 +22,12 @@ export function Header() {
 
         <nav className="flex items-center space-x-4 lg:space-x-6 mx-6">
           <Link
+            href="/upload-and-display"
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            Transform
+          </Link>
+          <Link
               href="/contact"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
             >
