@@ -202,9 +202,8 @@ export default function ImageTransformer() {
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description:
-          error instanceof Error ? error.message : 'An unknown error occurred during transformation.',
+        title: 'Transformation Error',
+        description: `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
       });
     } finally {
       setProgress(100);
