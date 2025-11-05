@@ -59,7 +59,7 @@ export function useImageTransformations() {
   const storage = getStorage();
 
   const transformationsQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || !firestore) return null;
     return query(
       collection(firestore, 'transformedImages'),
       orderBy('createdAt', 'desc'),
@@ -165,9 +165,10 @@ export function useImageTransformations() {
 
       // We only save to storage and DB if the user is logged in
       if (user) {
-        const originalFilePath = `dth-storage/${user!.uid}/${new Date().toISOString()}_original_${file.name}`;
+        const timestamp = new Date().toISOString();
+        const originalFilePath = `dth-storage/${user!.uid}/${timestamp}_original_${file.name}`;
         const transformedBlob = dataUriToBlob(transformResult.transformedPhotoDataUri);
-        const transformedFilePath = `dth-storage/${user!.uid}/${new Date().toISOString()}_transformed_${file.name}`;
+        const transformedFilePath = `dth-storage/${user!.uid}/${timestamp}_transformed_${file.name}`;
         
         setProgress(60);
         const [originalImageURL, transformedImageURL] = await Promise.all([
