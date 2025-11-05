@@ -1,25 +1,17 @@
 'use server';
 
-import {
-  generateTransformationPrompt,
-  GenerateTransformationPromptInput,
-} from '@/ai/flows/generate-transformation-prompt';
-import {
-  recommendTransformationType,
-  RecommendTransformationTypeInput,
-} from '@/ai/flows/recommend-transformation-type';
-import { transformImage, TransformImageInput } from '@/ai/flows/transform-image';
+import { generateTransformationPrompt } from '@/ai/flows/generate-transformation-prompt';
+import { recommendTransformationType } from '@/ai/flows/recommend-transformation-type';
+import { transformImage } from '@/ai/flows/transform-image';
 import { z } from 'zod';
 
 const recommendSchema = z.object({
   photoDataUri: z.string().startsWith('data:image/'),
 });
 
-export async function getTransformationRecommendations(
-  input: RecommendTransformationTypeInput
-) {
+export async function getTransformationRecommendations(formData: { photoDataUri: string }) {
   try {
-    const validatedData = recommendSchema.safeParse(input);
+    const validatedData = recommendSchema.safeParse(formData);
 
     if (!validatedData.success) {
       throw new Error('Invalid image data format.');
@@ -31,7 +23,6 @@ export async function getTransformationRecommendations(
 
     return result.transformationTypes;
   } catch (error) {
-    console.error('Error in getTransformationRecommendations:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'An unknown error occurred.';
     throw new Error(errorMessage);
@@ -42,11 +33,9 @@ const generatePromptSchema = z.object({
   userPrompt: z.string().min(3).max(200),
 });
 
-export async function getGeneratedPrompt(
-  input: GenerateTransformationPromptInput
-) {
+export async function getGeneratedPrompt(formData: { userPrompt: string }) {
   try {
-    const validatedData = generatePromptSchema.safeParse(input);
+    const validatedData = generatePromptSchema.safeParse(formData);
 
     if (!validatedData.success) {
       throw new Error('Invalid prompt. It must be between 3 and 200 characters.');
@@ -58,7 +47,6 @@ export async function getGeneratedPrompt(
 
     return result.transformationPrompt;
   } catch (error) {
-    console.error('Error in getGeneratedPrompt:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'An unknown error occurred.';
     throw new Error(errorMessage);
@@ -70,9 +58,9 @@ const transformImageSchema = z.object({
   prompt: z.string(),
 });
 
-export async function getTransformedImage(input: TransformImageInput) {
+export async function getTransformedImage(formData: { photoDataUri: string, prompt: string }) {
   try {
-    const validatedData = transformImageSchema.safeParse(input);
+    const validatedData = transformImageSchema.safeParse(formData);
 
     if (!validatedData.success) {
       throw new Error('Invalid input for transformation.');
@@ -85,7 +73,6 @@ export async function getTransformedImage(input: TransformImageInput) {
 
     return result.transformedPhotoDataUri;
   } catch (error) {
-    console.error('Error in getTransformedImage:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'An unknown error occurred.';
     throw new Error(errorMessage);

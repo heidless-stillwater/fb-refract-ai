@@ -99,12 +99,8 @@ export function useImageTransformations() {
         error instanceof Error
           ? error.message
           : 'An unknown error occurred while getting recommendations.';
-      toast({
-        variant: 'destructive',
-        title: 'Recommendation Error',
-        description: errorMessage,
-      });
-      return [];
+      // We re-throw the error so the component can handle UI state.
+      throw new Error(errorMessage);
     }
   };
 
@@ -203,14 +199,8 @@ export function useImageTransformations() {
 
       return transformedPhotoDataUri;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      toast({
-        variant: 'destructive',
-        title: 'Transformation Error',
-        description: `An unexpected error occurred: ${errorMessage}`,
-      });
-      throw error; // Re-throw to be caught by the component
+       // Catch any error from the process and re-throw it for the component.
+      throw error;
     } finally {
       setTimeout(() => {
         setIsProcessing(false);
