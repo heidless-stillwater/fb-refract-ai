@@ -115,7 +115,7 @@ export async function submitContactForm(formData: FormData) {
       };
     }
     
-    // Server-side Firebase Admin initialization
+    // Ensure Firebase Admin is initialized before using its services
     await initializeAdminApp();
     const firestore = getAdminFirestore();
     
