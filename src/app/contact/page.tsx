@@ -32,6 +32,7 @@ import {
   File as FileIcon,
   X,
   Download,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useFirestore,
@@ -73,59 +74,30 @@ const contactFormSchema = z.object({
 type ContactFormValues = z.infer<typeof contactFormSchema>;
 
 const DownloadableAttachment = ({ url, filename }: { url: string; filename: string }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { toast } = useToast();
-
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDownloading(true);
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(objectUrl);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Download Failed',
-        description: 'Could not download the attachment.',
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
   const isImage = /\.(jpg|jpeg|png|gif)$/i.test(filename);
 
   if (isImage) {
     return (
       <div className="relative w-48 h-32 rounded-lg overflow-hidden border group">
         <Image src={url} alt={filename} layout="fill" objectFit="cover" />
-        <div
-          onClick={handleDownload}
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
           className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
         >
-          {isDownloading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
-        </div>
+          <ExternalLink className="w-6 h-6" />
+        </a>
       </div>
     );
   }
 
   return (
-    <Button onClick={handleDownload} variant="outline" size="sm" disabled={isDownloading}>
-      {isDownloading ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      ) : (
+    <Button asChild variant="outline" size="sm">
+      <a href={url} target="_blank" rel="noopener noreferrer">
         <Download className="mr-2 h-4 w-4" />
-      )}
-      {filename}
+        {filename}
+      </a>
     </Button>
   );
 };

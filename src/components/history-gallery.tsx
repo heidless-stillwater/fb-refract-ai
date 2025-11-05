@@ -8,8 +8,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, CornerDownRight, Download, Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { ArrowRight, CornerDownRight, ExternalLink } from 'lucide-react';
 
 export type TransformationHistoryItem = {
   id: string;
@@ -25,37 +24,7 @@ type HistoryGalleryProps = {
   history: TransformationHistoryItem[];
 };
 
-const DownloadableHistoryImage = ({ src, alt, fileName, hint }: { src: string; alt: string; fileName: string; hint: string }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { toast } = useToast();
-
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!src) return;
-    setIsDownloading(true);
-    try {
-      const response = await fetch(src);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Download Failed',
-        description: 'Could not download the image. Please try again.',
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
+const DownloadableHistoryImage = ({ src, alt, hint }: { src: string; alt: string; hint: string }) => {
   return (
     <div className="rounded-lg overflow-hidden border-2 border-transparent relative group">
       <Image
@@ -66,16 +35,14 @@ const DownloadableHistoryImage = ({ src, alt, fileName, hint }: { src: string; a
         className="object-cover w-full h-auto aspect-video rounded-md"
         data-ai-hint={hint}
       />
-      <div
-        onClick={handleDownload}
+      <a
+        href={src}
+        target="_blank"
+        rel="noopener noreferrer"
         className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md cursor-pointer"
       >
-        {isDownloading ? (
-          <Loader2 className="w-8 h-8 animate-spin" />
-        ) : (
-          <Download className="w-8 h-8" />
-        )}
-      </div>
+        <ExternalLink className="w-8 h-8" />
+      </a>
     </div>
   );
 };
@@ -118,7 +85,6 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                 <DownloadableHistoryImage
                   src={item.originalUrl}
                   alt="Original image for transformation"
-                  fileName={`original-${item.id}.jpg`}
                   hint={item.originalHint}
                 />
               </div>
@@ -136,7 +102,6 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                   <DownloadableHistoryImage
                     src={item.transformedUrl}
                     alt="Transformed image"
-                    fileName={`transformed-${item.id}.jpg`}
                     hint={item.transformedHint}
                   />
                 </div>

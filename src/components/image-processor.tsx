@@ -23,6 +23,7 @@ import {
   Wand2,
   Download,
   Info,
+  ExternalLink,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -35,6 +36,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { HistoryGallery } from './history-gallery';
+import Link from 'next/link';
 
 const transformationOptions = [
   {
@@ -65,35 +67,7 @@ const transformationOptions = [
   { value: 'custom', label: 'Custom Prompt', requiresPrompt: true },
 ];
 
-const DownloadableImage = ({ src, alt, fileName }: { src: string; alt: string; fileName: string }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { toast } = useToast();
-
-  const handleDownload = async () => {
-    if (!src) return;
-    setIsDownloading(true);
-    try {
-      const response = await fetch(src);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Download Failed',
-        description: 'Could not download the image. Please try again.',
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
+const DownloadableImage = ({ src, alt }: { src: string; alt: string; }) => {
   return (
     <div className="relative w-full h-full min-h-[250px] group">
       <Image
@@ -103,16 +77,14 @@ const DownloadableImage = ({ src, alt, fileName }: { src: string; alt: string; f
         objectFit="contain"
         className="rounded-md"
       />
-      <div
+      <a
+        href={src}
+        target="_blank"
+        rel="noopener noreferrer"
         className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md cursor-pointer"
-        onClick={handleDownload}
       >
-        {isDownloading ? (
-          <Loader2 className="w-8 h-8 animate-spin" />
-        ) : (
-          <Download className="w-8 h-8" />
-        )}
-      </div>
+        <ExternalLink className="w-8 h-8" />
+      </a>
     </div>
   );
 };
@@ -293,7 +265,6 @@ export default function ImageProcessor() {
                   <DownloadableImage
                     src={previewUrl}
                     alt="Selected preview"
-                    fileName={selectedFile.name}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -416,7 +387,6 @@ export default function ImageProcessor() {
                  <DownloadableImage
                     src={transformedUrl}
                     alt="Transformed image"
-                    fileName={`transformed-${selectedFile.name}`}
                   />
               )}
             </div>
