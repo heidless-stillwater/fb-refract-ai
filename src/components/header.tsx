@@ -15,10 +15,21 @@ export function Header() {
       <div className="container flex h-14 max-w-screen-2xl items-center">
         <div className="mr-4 flex items-center">
           <Logo />
-          <span className="ml-2 font-headline text-lg font-bold">
+          <Link href="/" className="ml-2 font-headline text-lg font-bold">
             Refract AI
-          </span>
+          </Link>
         </div>
+
+        <nav className="flex items-center space-x-4 lg:space-x-6 mx-6">
+          <Link
+              href="/contact"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            >
+              Contact
+            </Link>
+        </nav>
+
+
         <div className="flex flex-1 items-center justify-end space-x-2">
           {isUserLoading ? null : user ? (
             <UserNav />

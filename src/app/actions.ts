@@ -88,3 +88,47 @@ export async function getTransformedImage(formData: FormData) {
     return { success: false, error: errorMessage };
   }
 }
+
+const contactFormSchema = z.object({
+  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
+  email: z.string().email({ message: 'Please enter a valid email address.' }),
+  message: z.string().min(10, { message: 'Message must be at least 10 characters.' }),
+});
+
+export async function submitContactForm(formData: FormData) {
+  try {
+    const validatedData = contactFormSchema.safeParse({
+      name: formData.get('name'),
+      email: formData.get('email'),
+      message: formData.get('message'),
+    });
+
+    if (!validatedData.success) {
+      // Create a detailed error message from Zod issues.
+      const errorDetails = validatedData.error.issues
+        .map(issue => `${issue.path.join('.')}: ${issue.message}`)
+        .join('; ');
+      return {
+        success: false,
+        error: `Invalid form data: ${errorDetails}`,
+      };
+    }
+    
+    // In a real application, you would process the data here,
+    // e.g., send an email or save to a database.
+    console.log('Contact form submitted:', validatedData.data);
+
+    // Simulate a potential server-side error for demonstration.
+    if (validatedData.data.name.toLowerCase() === 'error') {
+        throw new Error('This is a simulated server error for demonstration.');
+    }
+
+
+    return { success: true };
+
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'An unknown server error occurred.';
+    return { success: false, error: errorMessage };
+  }
+}
