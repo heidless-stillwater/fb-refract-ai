@@ -56,7 +56,7 @@ const initialHistory: TransformationHistoryItem[] = [
   },
 ];
 
-export default function ImageTransformer() {
+export default function ImageProcessor() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [transformedUrl, setTransformedUrl] = useState<string | null>(null);
