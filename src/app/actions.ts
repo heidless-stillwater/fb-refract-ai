@@ -4,8 +4,8 @@ import { generateTransformationPrompt } from '@/ai/flows/generate-transformation
 import { recommendTransformationType } from '@/ai/flows/recommend-transformation-type';
 import { transformImage } from '@/ai/flows/transform-image';
 import { z } from 'zod';
-import { getFirestore, collection, addDoc } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+import { getFirestore, collection } from 'firebase/firestore';
+import { initializeFirebase, addDocumentNonBlocking } from '@/firebase';
 
 const recommendSchema = z.object({
   photoDataUri: z.string().startsWith('data:image/'),
@@ -98,36 +98,31 @@ const contactFormSchema = z.object({
 });
 
 export async function submitContactForm(formData: FormData) {
-  try {
-    const validatedData = contactFormSchema.safeParse({
-      name: formData.get('name'),
-      email: formData.get('email'),
-      message: formData.get('message'),
-    });
+  const validatedData = contactFormSchema.safeParse({
+    name: formData.get('name'),
+    email: formData.get('email'),
+    message: formData.get('message'),
+  });
 
-    if (!validatedData.success) {
-      const errorDetails = validatedData.error.issues
-        .map(issue => `${issue.path.join('.')}: ${issue.message}`)
-        .join('; ');
-      return {
-        success: false,
-        error: `Invalid form data: ${errorDetails}`,
-      };
-    }
-    
-    // Server-side Firebase initialization
-    const { firestore } = initializeFirebase();
-    
-    await addDoc(collection(firestore, 'dnd_contactMessages'), {
-      ...validatedData.data,
-      submittedAt: new Date(),
-    });
-
-    return { success: true };
-
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'An unknown server error occurred.';
-    return { success: false, error: errorMessage };
+  if (!validatedData.success) {
+    const errorDetails = validatedData.error.issues
+      .map(issue => `${issue.path.join('.')}: ${issue.message}`)
+      .join('; ');
+    return {
+      success: false,
+      error: `Invalid form data: ${errorDetails}`,
+    };
   }
+  
+  // Server-side Firebase initialization
+  const { firestore } = initializeFirebase();
+  
+  // The use of a non-blocking add operation allows the global error
+  // handler to catch and display any potential Firestore permission errors.
+  addDocumentNonBlocking(collection(firestore, 'dnd_contactMessages'), {
+    ...validatedData.data,
+    submittedAt: new Date(),
+  });
+
+  return { success: true };
 }
