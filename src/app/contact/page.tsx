@@ -23,12 +23,37 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, Mail, User as UserIcon } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase, useAuth, addDocumentNonBlocking } from '@/firebase';
+import {
+  Loader2,
+  Send,
+  Mail,
+  User as UserIcon,
+  Paperclip,
+  File as FileIcon,
+  X,
+  Image as ImageIcon
+} from 'lucide-react';
+import {
+  useFirestore,
+  useMemoFirebase,
+  addDocumentNonBlocking,
+  useCollection,
+} from '@/firebase';
+import {
+  getStorage,
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+} from 'firebase/storage';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuthGate } from '@/hooks/use-auth-gate';
+import { Progress } from '@/components/ui/progress';
+import Image from 'next/image';
+import Link from 'next/link';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 const contactFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -37,6 +62,13 @@ const contactFormSchema = z.object({
     .string()
     .min(10, { message: 'Message must be at least 10 characters.' })
     .max(500, { message: 'Message must not exceed 500 characters.' }),
+  attachment: z
+    .custom<FileList>()
+    .optional()
+    .refine(
+      files => !files || files.length === 0 || files[0].size <= MAX_FILE_SIZE,
+      `Max file size is 5MB.`
+    ),
 });
 
 type ContactFormValues = z.infer<typeof contactFormSchema>;
@@ -55,6 +87,8 @@ function MessageList() {
     [firestore]
   );
   const { data: messages, isLoading } = useCollection<any>(messagesQuery);
+
+  const isImage = (url: string) => /\.(jpg|jpeg|png|gif)$/i.test(url);
 
   if (isLoading) {
     return (
@@ -91,6 +125,29 @@ function MessageList() {
                 <Mail className="h-3 w-3" /> {msg.email}
               </p>
               <p className="mt-2 text-foreground">{msg.message}</p>
+              {msg.attachmentURL && (
+                 <div className="mt-4">
+                  {isImage(msg.attachmentURL) ? (
+                    <div className="relative w-48 h-32 rounded-lg overflow-hidden border">
+                      <Image src={msg.attachmentURL} alt={msg.attachmentFilename ?? 'Attachment'} layout="fill" objectFit="cover" />
+                      <Link href={msg.attachmentURL} passHref>
+                          <a target="_blank" rel="noopener noreferrer" className="absolute inset-0 bg-black bg-opacity-25 flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity">
+                            View Full Image
+                          </a>
+                      </Link>
+                    </div>
+                  ) : (
+                    <Button asChild variant="outline" size="sm">
+                       <Link href={msg.attachmentURL} passHref>
+                          <a target="_blank" rel="noopener noreferrer">
+                            <FileIcon className="mr-2" />
+                            {msg.attachmentFilename ?? 'Download Attachment'}
+                          </a>
+                      </Link>
+                    </Button>
+                  )}
+                 </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -101,10 +158,11 @@ function MessageList() {
 
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const storage = getStorage();
   const { ensureAuthenticated } = useAuthGate();
-
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
@@ -115,36 +173,80 @@ export default function ContactPage() {
     },
   });
 
+  const attachmentFile = form.watch('attachment');
+
   const onSubmit = async (values: ContactFormValues) => {
     setIsSubmitting(true);
-    
+    setUploadProgress(null);
+
     const isAuthenticated = await ensureAuthenticated();
     if (!isAuthenticated) {
-        toast({
-            variant: 'destructive',
-            title: 'Authentication Required',
-            description: 'Please sign in to send a message.',
-        });
-        setIsSubmitting(false);
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Required',
+        description: 'Please sign in to send a message.',
+      });
+      setIsSubmitting(false);
+      return;
     }
 
     if (!firestore) {
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Database connection not available. Please try again later.',
-        });
-        setIsSubmitting(false);
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Database connection not available. Please try again later.',
+      });
+      setIsSubmitting(false);
+      return;
     }
 
     try {
+      let attachmentURL: string | null = null;
+      let attachmentFilename: string | null = null;
+      const file = values.attachment?.[0];
+
+      if (file) {
+        setUploadProgress(0);
+        const storageRef = ref(
+          storage,
+          `dnd_contactAttachments/${new Date().toISOString()}_${file.name}`
+        );
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        await new Promise<void>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            snapshot => {
+              const progress =
+                (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+            },
+            error => {
+              reject(new Error(`File upload failed: ${error.message}`));
+            },
+            async () => {
+              attachmentURL = await getDownloadURL(uploadTask.snapshot.ref);
+              attachmentFilename = file.name;
+              resolve();
+            }
+          );
+        });
+      }
+
       const messagesCollection = collection(firestore, 'dnd_contactMessages');
-      await addDocumentNonBlocking(messagesCollection, {
-          ...values,
-          submittedAt: new Date(),
-      });
+      const messageData: any = {
+        name: values.name,
+        email: values.email,
+        message: values.message,
+        submittedAt: new Date(),
+      };
+
+      if (attachmentURL) {
+        messageData.attachmentURL = attachmentURL;
+        messageData.attachmentFilename = attachmentFilename;
+      }
+      
+      await addDocumentNonBlocking(messagesCollection, messageData);
 
       toast({
         title: 'Message Sent!',
@@ -152,16 +254,22 @@ export default function ContactPage() {
       });
       form.reset();
     } catch (error) {
-       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-       toast({
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred.';
+      toast({
         variant: 'destructive',
         title: 'Submission Failed',
         description: errorMessage,
       });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
+  
+  const clearAttachment = () => {
+    form.setValue('attachment', undefined);
+  }
 
   return (
     <div className="container max-w-4xl mx-auto py-12 px-4 grid md:grid-cols-2 gap-12 items-start">
@@ -220,6 +328,50 @@ export default function ContactPage() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="attachment"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Attachment (Optional)</FormLabel>
+                      <FormControl>
+                         <div className="relative">
+                          <Input
+                            type="file"
+                            className="hidden"
+                            id="attachment-input"
+                            onChange={e => field.onChange(e.target.files)}
+                          />
+                          <label
+                            htmlFor="attachment-input"
+                            className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary transition-colors flex flex-col items-center justify-center text-muted-foreground"
+                          >
+                           {attachmentFile?.[0] ? (
+                              <div className="flex items-center gap-2">
+                                <FileIcon/>
+                                <span>{attachmentFile[0].name}</span>
+                                <Button variant="ghost" size="icon" onClick={(e) => {e.preventDefault(); clearAttachment();}} className="h-6 w-6">
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                               <>
+                                <Paperclip className="h-8 w-8 mb-2" />
+                                <span>Click or drag to attach a file</span>
+                               </>
+                            )}
+                          </label>
+                         </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                 {uploadProgress !== null && (
+                  <Progress value={uploadProgress} className="w-full" />
+                )}
+
                 <Button type="submit" disabled={isSubmitting} className="w-full">
                   {isSubmitting ? (
                     <Loader2 className="animate-spin" />

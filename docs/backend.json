@@ -66,6 +66,15 @@
           "type": "string",
           "format": "date-time",
           "description": "The timestamp when the message was submitted."
+        },
+        "attachmentURL": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the file attached to the message."
+        },
+        "attachmentFilename": {
+           "type": "string",
+           "description": "The original filename of the attachment."
         }
       },
       "required": ["name", "email", "message", "submittedAt"]

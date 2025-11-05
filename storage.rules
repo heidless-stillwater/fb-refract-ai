@@ -6,5 +6,12 @@ service firebase.storage {
     match /dth-storage/{allPaths=**} {
       allow read, write: if request.auth != null;
     }
+
+    // Allow authenticated users to write to the contact attachments folder.
+    // Allow anyone to read the attachments.
+    match /dnd_contactAttachments/{attachmentId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
   }
 }
