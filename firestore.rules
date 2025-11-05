@@ -1,55 +1,40 @@
 /**
- * @fileOverview Firestore Security Rules for Image Transformation App.
+ * @fileoverview Firestore Security Rules for Refract AI (AI Image Hub).
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for images. Each user, identified by their Firebase Authentication UID,
- * has exclusive access to their own image data. Data schema validation is relaxed for prototyping.
+ * This ruleset provides public read and write access to transformed image data,
+ * as all users are anonymous. Security measures focus on preventing abuse
+ * rather than enforcing user-based authorization. Data validation beyond
+ * authorization is not performed in this prototyping phase.
  *
  * Data Structure:
- * All image data is nested under /users/{userId}/images/{imageId}, providing a clear ownership hierarchy.
+ * Transformed images are stored in a top-level collection called
+ * `/transformedImages/{transformedImageId}`.
  *
  * Key Security Decisions:
- * - Users can only access and manage images associated with their own UID.
- * - The 'list' operation is restricted to the owner of the images.
- * - Data validation is minimized to essential fields only, focusing on user ID consistency.
- * - Denormalization: The userId is implicitly denormalized via the path.  The image documents under `/users/{userId}` are considered owned by `userId`.
+ * - Public read access is granted to all `transformedImages`.
+ * - Write access (create, update, delete) is open, but in a real application,
+ *   it is critical to add rules to prevent abuse.
+ *
+ * WARNING: This ruleset does NOT provide adequate protection against abuse.
+ *          It MUST be extended with rate limiting, input validation, and
+ *          potentially CAPTCHA or similar mechanisms before being deployed
+ *          to a production environment.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces access control for images stored under a user's profile.
-     * @path /users/{userId}/images/{imageId}
-     * @allow (create) - Allows a user to create an image if the userId matches their auth UID and imageId is present in the document.
-     * @allow (get, list) - Allows a user to read their own images.
-     * @allow (update, delete) - Allows a user to update or delete their own images if they exist.
-     * @deny (create) - Denies creation if the userId does not match the auth UID.
-     * @deny (update, delete) - Denies updating or deleting images that do not exist or do not belong to the user.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, validates relational integrity between documents.
+     * @description Allows public read access to transformed image data.
+     * @path /transformedImages/{transformedImageId}
+     * @allow (get, list) User can retrieve or list transformed images.
+     * @deny (create, update, delete) N/A - all users can create, update, and delete images.
+     * @principle Allows open access to image data.
      */
-    match /users/{userId}/images/{imageId} {
-      // Helpers:
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      // Permissions:
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-
-      allow create: if isOwner(userId) && request.resource.data.id == imageId;
-
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+    match /transformedImages/{transformedImageId} {
+      allow get, list: if true;
+      allow create, update, delete: if true; // WARNING: Open write access! Add abuse prevention measures.
     }
   }
 }
