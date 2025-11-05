@@ -19,7 +19,9 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { Upload, Wand2, RefreshCw, Sparkles, Loader2 } from 'lucide-react';
+import { Upload, Wand2, RefreshCw, Sparkles, Loader2, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { Textarea } from './ui/textarea';
 
 const TRANSFORMATION_TYPES = [
   { id: 'style_transfer', label: 'Style Transfer', requiresPrompt: true },
@@ -65,6 +67,7 @@ export default function ImageTransformer() {
   const [progress, setProgress] = useState(0);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [isGettingRecs, setIsGettingRecs] = useState(false);
+  const [recommendationError, setRecommendationError] = useState<string | null>(null);
   const [selectedTransform, setSelectedTransform] = useState<string>(
     TRANSFORMATION_TYPES[0].id
   );
@@ -101,6 +104,7 @@ export default function ImageTransformer() {
         setPreviewUrl(URL.createObjectURL(file));
         setTransformedUrl(null);
         setRecommendations([]);
+        setRecommendationError(null);
         setIsGettingRecs(true);
         try {
           const dataUri = await fileToDataUri(file);
@@ -110,13 +114,17 @@ export default function ImageTransformer() {
           if (result.success) {
             setRecommendations(result.recommendations);
           } else {
+            const errorMessage = result.error || 'An unknown error occurred while getting recommendations.';
+            setRecommendationError(errorMessage);
             toast({
               variant: 'destructive',
               title: 'Recommendation Failed',
-              description: result.error,
+              description: 'See error details below the image.',
             });
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Could not get recommendations.';
+          setRecommendationError(errorMessage);
           toast({
             variant: 'destructive',
             title: 'Error',
@@ -200,10 +208,11 @@ export default function ImageTransformer() {
         });
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       toast({
         variant: 'destructive',
         title: 'Transformation Error',
-        description: `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
+        description: `An unexpected error occurred: ${errorMessage}`,
       });
     } finally {
       setProgress(100);
@@ -218,6 +227,7 @@ export default function ImageTransformer() {
     setPreviewUrl(null);
     setTransformedUrl(null);
     setRecommendations([]);
+    setRecommendationError(null);
     setUserPrompt('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -290,6 +300,21 @@ export default function ImageTransformer() {
                     className="object-contain"
                   />
                 </div>
+                 {recommendationError && (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Recommendation Failed</AlertTitle>
+                    <AlertDescription>
+                      You can copy the error message below for support.
+                      <Textarea
+                        className="w-full mt-2 font-mono text-xs"
+                        readOnly
+                        value={recommendationError}
+                        rows={4}
+                      />
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
