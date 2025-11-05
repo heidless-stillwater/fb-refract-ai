@@ -41,7 +41,7 @@ const transformImageFlow = ai.defineFlow(
       model: 'googleai/gemini-2.5-flash-image-preview',
       prompt: [
         {media: {url: input.photoDataUri}},
-        {text: `Transform the image based on the following prompt: ${input.prompt}`},
+        {text: input.prompt},
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
