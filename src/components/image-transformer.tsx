@@ -2,15 +2,12 @@
 
 import { useState, useRef, useTransition, useEffect } from 'react';
 import Image from 'next/image';
-import {
-  getTransformationRecommendations,
-  getGeneratedPrompt,
-  getTransformedImage,
-} from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import type { TransformationHistoryItem } from './history-gallery';
 import { HistoryGallery } from './history-gallery';
+import { useImageTransformations } from '@/hooks/use-image-transformations';
+import { useAuthGate } from '@/hooks/use-auth-gate';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,8 +60,6 @@ export default function ImageTransformer() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [transformedUrl, setTransformedUrl] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [isGettingRecs, setIsGettingRecs] = useState(false);
   const [recommendationError, setRecommendationError] = useState<string | null>(null);
@@ -72,27 +67,20 @@ export default function ImageTransformer() {
     TRANSFORMATION_TYPES[0].id
   );
   const [userPrompt, setUserPrompt] = useState('');
-  const [history, setHistory] =
-    useState<TransformationHistoryItem[]>(initialHistory);
+  
+  const { ensureAuthenticated } = useAuthGate();
 
-  const [isPending, startTransition] = useTransition();
+  const {
+    history,
+    isProcessing,
+    progress,
+    getRecommendations,
+    transformImage,
+  } = useImageTransformations();
+
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isProcessing) {
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(interval);
-            return 95;
-          }
-          return prev + 5;
-        });
-      }, 500);
-      return () => clearInterval(interval);
-    }
-  }, [isProcessing]);
+  const [isPending, startTransition] = useTransition();
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -108,27 +96,15 @@ export default function ImageTransformer() {
         setIsGettingRecs(true);
         try {
           const dataUri = await fileToDataUri(file);
-          const formData = new FormData();
-          formData.append('photoDataUri', dataUri);
-          const result = await getTransformationRecommendations(formData);
-          if (result.success) {
-            setRecommendations(result.recommendations);
-          } else {
-            const errorMessage = result.error || 'An unknown error occurred while getting recommendations.';
-            setRecommendationError(errorMessage);
-            toast({
-              variant: 'destructive',
-              title: 'Recommendation Failed',
-              description: 'See error details below the image.',
-            });
-          }
+          const result = await getRecommendations(dataUri);
+          setRecommendations(result);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Could not get recommendations.';
           setRecommendationError(errorMessage);
           toast({
             variant: 'destructive',
-            title: 'Error',
-            description: 'Could not get recommendations.',
+            title: 'Recommendation Failed',
+            description: 'See error details below the image.',
           });
         } finally {
           setIsGettingRecs(false);
@@ -140,11 +116,18 @@ export default function ImageTransformer() {
   const handleTransform = async () => {
     if (!selectedFile) return;
 
-    setIsProcessing(true);
-    setProgress(10);
+    const isAuthenticated = await ensureAuthenticated();
+    if (!isAuthenticated) {
+        toast({
+            variant: 'destructive',
+            title: 'Authentication Required',
+            description: 'Please sign in to transform images.',
+        });
+        return;
+    }
+
     setTransformedUrl(null);
 
-    let finalPrompt = userPrompt;
     const transformType = TRANSFORMATION_TYPES.find(
       t => t.id === selectedTransform
     );
@@ -155,58 +138,18 @@ export default function ImageTransformer() {
         title: 'Error',
         description: 'Invalid transformation type selected.',
       });
-      setIsProcessing(false);
       return;
-    }
-    
-    if (transformType.requiresPrompt && userPrompt) {
-        const formData = new FormData();
-        formData.append('userPrompt', userPrompt);
-        const result = await getGeneratedPrompt(formData);
-        if (result.success && result.prompt) {
-          finalPrompt = result.prompt;
-        }
-    } else if (transformType.requiresPrompt && !userPrompt) {
-        toast({
-            variant: 'destructive',
-            title: 'Prompt Required',
-            description: 'This transformation type requires a prompt.',
-        });
-        setIsProcessing(false);
-        return;
-    } else {
-      finalPrompt = transformType.label;
     }
 
     try {
-      const dataUri = await fileToDataUri(selectedFile);
-      const formData = new FormData();
-      formData.append('photoDataUri', dataUri);
-      formData.append('prompt', finalPrompt);
-      
-      const result = await getTransformedImage(formData);
-
-      if (result.success && result.transformedPhotoDataUri) {
-        setTransformedUrl(result.transformedPhotoDataUri);
-
-        const newHistoryItem: TransformationHistoryItem = {
-          id: new Date().toISOString(),
-          originalUrl: previewUrl!,
-          transformedUrl: result.transformedPhotoDataUri,
-          transformationType: transformType?.label || 'Transformation',
-          prompt: transformType?.requiresPrompt ? finalPrompt : undefined,
-          originalHint: 'uploaded image',
-          transformedHint: `${selectedTransform} ${finalPrompt}`,
-        };
-        setHistory(prev => [newHistoryItem, ...prev]);
-
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Transformation Failed',
-          description: result.error || 'Could not transform the image.',
+        const resultUrl = await transformImage({
+            file: selectedFile,
+            transformType: transformType.id,
+            prompt: userPrompt,
+            requiresPrompt: !!transformType.requiresPrompt,
+            label: transformType.label
         });
-      }
+        setTransformedUrl(resultUrl);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       toast({
@@ -214,11 +157,6 @@ export default function ImageTransformer() {
         title: 'Transformation Error',
         description: `An unexpected error occurred: ${errorMessage}`,
       });
-    } finally {
-      setProgress(100);
-      setTimeout(() => {
-        setIsProcessing(false);
-      }, 500);
     }
   };
 
@@ -241,6 +179,8 @@ export default function ImageTransformer() {
   const handleChooseImageClick = () => {
     fileInputRef.current?.click();
   };
+
+  const displayedHistory = history.length > 0 ? history : initialHistory;
 
   return (
     <div>
@@ -280,7 +220,7 @@ export default function ImageTransformer() {
               </div>
             </CardContent>
           </Card>
-          <HistoryGallery history={history} />
+          <HistoryGallery history={displayedHistory} />
         </div>
       ) : (
         <div>
@@ -444,7 +384,7 @@ export default function ImageTransformer() {
               </CardContent>
             </Card>
           )}
-          <HistoryGallery history={history} />
+          <HistoryGallery history={displayedHistory} />
         </div>
       )}
     </div>
