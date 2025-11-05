@@ -4,8 +4,6 @@ import { generateTransformationPrompt } from '@/ai/flows/generate-transformation
 import { recommendTransformationType } from '@/ai/flows/recommend-transformation-type';
 import { transformImage } from '@/ai/flows/transform-image';
 import { z } from 'zod';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
-import { initializeAdminApp } from '@/lib/firebase/admin';
 
 const recommendSchema = z.object({
   photoDataUri: z.string().startsWith('data:image/'),
@@ -88,48 +86,5 @@ export async function getTransformedImage(formData: FormData) {
     const errorMessage =
       error instanceof Error ? error.message : 'An unknown error occurred.';
     return { success: false, error: errorMessage };
-  }
-}
-
-const contactFormSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  email: z.string().email({ message: 'Please enter a valid email address.' }),
-  message: z.string().min(10, { message: 'Message must be at least 10 characters.' }),
-});
-
-export async function submitContactForm(formData: FormData) {
-  try {
-    const validatedData = contactFormSchema.safeParse({
-      name: formData.get('name'),
-      email: formData.get('email'),
-      message: formData.get('message'),
-    });
-
-    if (!validatedData.success) {
-      const errorDetails = validatedData.error.issues
-        .map(issue => `${issue.path.join('.')}: ${issue.message}`)
-        .join('; ');
-      return {
-        success: false,
-        error: `Invalid form data: ${errorDetails}`,
-      };
-    }
-    
-    // Ensure Firebase Admin is initialized before using its services
-    await initializeAdminApp();
-    const firestore = getAdminFirestore();
-    
-    await firestore.collection('dnd_contactMessages').add({
-      ...validatedData.data,
-      submittedAt: new Date(),
-    });
-
-    return { success: true };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'An unexpected server error occurred.';
-     return {
-      success: false,
-      error: errorMessage,
-    };
   }
 }

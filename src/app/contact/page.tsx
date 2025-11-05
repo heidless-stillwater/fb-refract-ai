@@ -24,11 +24,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Send, Mail, User as UserIcon } from 'lucide-react';
-import { submitContactForm } from '@/app/actions';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useAuth, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuthGate } from '@/hooks/use-auth-gate';
 
 const contactFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -102,6 +102,9 @@ function MessageList() {
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
+  const { ensureAuthenticated } = useAuthGate();
+
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
@@ -114,28 +117,50 @@ export default function ContactPage() {
 
   const onSubmit = async (values: ContactFormValues) => {
     setIsSubmitting(true);
-    const formData = new FormData();
-    Object.entries(values).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
+    
+    const isAuthenticated = await ensureAuthenticated();
+    if (!isAuthenticated) {
+        toast({
+            variant: 'destructive',
+            title: 'Authentication Required',
+            description: 'Please sign in to send a message.',
+        });
+        setIsSubmitting(false);
+        return;
+    }
 
-    const result = await submitContactForm(formData);
+    if (!firestore) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Database connection not available. Please try again later.',
+        });
+        setIsSubmitting(false);
+        return;
+    }
 
-    if (result.success) {
+    try {
+      const messagesCollection = collection(firestore, 'dnd_contactMessages');
+      await addDocumentNonBlocking(messagesCollection, {
+          ...values,
+          submittedAt: new Date(),
+      });
+
       toast({
         title: 'Message Sent!',
         description: "Thanks for reaching out. We've received your message.",
       });
       form.reset();
-    } else {
-      toast({
+    } catch (error) {
+       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+       toast({
         variant: 'destructive',
         title: 'Submission Failed',
-        description: result.error || 'An unexpected error occurred. Please try again.',
+        description: errorMessage,
       });
+    } finally {
+        setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   return (
