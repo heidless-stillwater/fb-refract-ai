@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Image from 'next/image';
 import {
   Card,
@@ -7,8 +8,8 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, CornerDownRight, Download } from 'lucide-react';
-import Link from 'next/link';
+import { ArrowRight, CornerDownRight, Download, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export type TransformationHistoryItem = {
   id: string;
@@ -22,6 +23,61 @@ export type TransformationHistoryItem = {
 
 type HistoryGalleryProps = {
   history: TransformationHistoryItem[];
+};
+
+const DownloadableHistoryImage = ({ src, alt, fileName, hint }: { src: string; alt: string; fileName: string; hint: string }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!src) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: 'Could not download the image. Please try again.',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg overflow-hidden border-2 border-transparent relative group">
+      <Image
+        src={src}
+        alt={alt}
+        width={600}
+        height={400}
+        className="object-cover w-full h-auto aspect-video rounded-md"
+        data-ai-hint={hint}
+      />
+      <div
+        onClick={handleDownload}
+        className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md cursor-pointer"
+      >
+        {isDownloading ? (
+          <Loader2 className="w-8 h-8 animate-spin" />
+        ) : (
+          <Download className="w-8 h-8" />
+        )}
+      </div>
+    </div>
+  );
 };
 
 export function HistoryGallery({ history }: HistoryGalleryProps) {
@@ -59,23 +115,12 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                 <p className="text-sm font-medium text-center text-muted-foreground">
                   Original
                 </p>
-                <div className="rounded-lg overflow-hidden border-2 border-transparent relative group">
-                  <Image
-                    src={item.originalUrl}
-                    alt="Original image for transformation"
-                    width={600}
-                    height={400}
-                    className="object-cover w-full h-auto aspect-video rounded-md"
-                    data-ai-hint={item.originalHint}
-                  />
-                   <Link
-                      href={item.originalUrl}
-                      download={`original-${item.id}`}
-                      className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md"
-                    >
-                      <Download className="w-8 h-8" />
-                    </Link>
-                </div>
+                <DownloadableHistoryImage
+                  src={item.originalUrl}
+                  alt="Original image for transformation"
+                  fileName={`original-${item.id}.jpg`}
+                  hint={item.originalHint}
+                />
               </div>
               <div className="hidden md:block text-center">
                  <ArrowRight className="w-8 h-8 text-primary mx-auto" />
@@ -88,21 +133,12 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                   Transformed
                 </p>
                 <div className="rounded-lg overflow-hidden border-2 border-primary/50 relative group">
-                  <Image
+                  <DownloadableHistoryImage
                     src={item.transformedUrl}
                     alt="Transformed image"
-                    width={600}
-                    height={400}
-                    className="object-cover w-full h-auto aspect-video rounded-md"
-                    data-ai-hint={item.transformedHint}
+                    fileName={`transformed-${item.id}.jpg`}
+                    hint={item.transformedHint}
                   />
-                   <Link
-                      href={item.transformedUrl}
-                      download={`transformed-${item.id}`}
-                      className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md"
-                    >
-                      <Download className="w-8 h-8" />
-                    </Link>
                 </div>
               </div>
             </CardContent>

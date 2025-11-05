@@ -51,7 +51,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAuthGate } from '@/hooks/use-auth-gate';
 import { Progress } from '@/components/ui/progress';
 import Image from 'next/image';
-import Link from 'next/link';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -73,6 +72,64 @@ const contactFormSchema = z.object({
 
 type ContactFormValues = z.infer<typeof contactFormSchema>;
 
+const DownloadableAttachment = ({ url, filename }: { url: string; filename: string }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { toast } = useToast();
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDownloading(true);
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: 'Could not download the attachment.',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const isImage = /\.(jpg|jpeg|png|gif)$/i.test(filename);
+
+  if (isImage) {
+    return (
+      <div className="relative w-48 h-32 rounded-lg overflow-hidden border group">
+        <Image src={url} alt={filename} layout="fill" objectFit="cover" />
+        <div
+          onClick={handleDownload}
+          className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+        >
+          {isDownloading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Button onClick={handleDownload} variant="outline" size="sm" disabled={isDownloading}>
+      {isDownloading ? (
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      ) : (
+        <Download className="mr-2 h-4 w-4" />
+      )}
+      {filename}
+    </Button>
+  );
+};
+
 function MessageList() {
   const firestore = useFirestore();
   const messagesQuery = useMemoFirebase(
@@ -87,8 +144,6 @@ function MessageList() {
     [firestore]
   );
   const { data: messages, isLoading } = useCollection<any>(messagesQuery);
-
-  const isImage = (url: string) => /\.(jpg|jpeg|png|gif)$/i.test(url);
 
   if (isLoading) {
     return (
@@ -125,32 +180,9 @@ function MessageList() {
                 <Mail className="h-3 w-3" /> {msg.email}
               </p>
               <p className="mt-2 text-foreground">{msg.message}</p>
-              {msg.attachmentURL && (
+              {msg.attachmentURL && msg.attachmentFilename && (
                  <div className="mt-4">
-                  {isImage(msg.attachmentURL) ? (
-                    <div className="relative w-48 h-32 rounded-lg overflow-hidden border group">
-                      <Image src={msg.attachmentURL} alt={msg.attachmentFilename ?? 'Attachment'} layout="fill" objectFit="cover" />
-                      <Link
-                        href={msg.attachmentURL}
-                        download={msg.attachmentFilename ?? 'attachment'}
-                        className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Download className="w-6 h-6" />
-                      </Link>
-                    </div>
-                  ) : (
-                    <Button asChild variant="outline" size="sm">
-                       <Link
-                          href={msg.attachmentURL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={msg.attachmentFilename ?? 'attachment'}
-                        >
-                          <FileIcon className="mr-2" />
-                          {msg.attachmentFilename ?? 'Download Attachment'}
-                        </Link>
-                    </Button>
-                  )}
+                  <DownloadableAttachment url={msg.attachmentURL} filename={msg.attachmentFilename} />
                  </div>
               )}
             </div>
