@@ -45,11 +45,13 @@ function MessageList() {
   const firestore = useFirestore();
   const messagesQuery = useMemoFirebase(
     () =>
-      query(
-        collection(firestore, 'dnd_contactMessages'),
-        orderBy('submittedAt', 'desc'),
-        limit(20)
-      ),
+      firestore
+        ? query(
+            collection(firestore, 'dnd_contactMessages'),
+            orderBy('submittedAt', 'desc'),
+            limit(20)
+          )
+        : null,
     [firestore]
   );
   const { data: messages, isLoading } = useCollection<any>(messagesQuery);
