@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   getStorage,
   ref,
@@ -14,7 +14,12 @@ import {
   orderBy,
   limit,
 } from 'firebase/firestore';
-import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
+import {
+  useFirestore,
+  useCollection,
+  useUser,
+  useMemoFirebase,
+} from '@/firebase';
 import {
   getTransformationRecommendations,
   getGeneratedPrompt,
@@ -58,14 +63,17 @@ export function useImageTransformations() {
   const { user } = useUser();
   const storage = getStorage();
 
-  const transformationsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return query(
-      collection(firestore, 'transformedImages'),
-      orderBy('createdAt', 'desc'),
-      limit(10)
-    )
-  }, [user, firestore]);
+  const transformationsQuery = useMemoFirebase(
+    () => {
+      if (!user || !firestore) return null;
+      return query(
+        collection(firestore, 'transformedImages'),
+        orderBy('createdAt', 'desc'),
+        limit(10)
+      );
+    },
+    [user, firestore]
+  );
 
   const { data: historyData } = useCollection<any>(transformationsQuery);
 
@@ -81,22 +89,26 @@ export function useImageTransformations() {
     })) || [];
 
   const getRecommendations = async (dataUri: string): Promise<string[]> => {
-    const formData = new FormData();
-    formData.append('photoDataUri', dataUri);
-    const result = await getTransformationRecommendations(formData);
-    if (result.success) {
-      return result.recommendations;
-    } else {
-      throw new Error(
-        result.error || 'An unknown error occurred while getting recommendations.'
-      );
+    try {
+      const recommendations = await getTransformationRecommendations({
+        photoDataUri: dataUri,
+      });
+      return recommendations;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred while getting recommendations.';
+      toast({
+        variant: 'destructive',
+        title: 'Recommendation Error',
+        description: errorMessage,
+      });
+      return [];
     }
   };
 
-  const uploadFile = (
-    file: File | Blob,
-    path: string
-  ): Promise<string> => {
+  const uploadFile = (file: File | Blob, path: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const storageRef = ref(storage, path);
       const uploadTask = uploadBytesResumable(storageRef, file);
@@ -127,50 +139,42 @@ export function useImageTransformations() {
     setIsProcessing(true);
     setProgress(10);
 
-    let finalPrompt = prompt;
-    if (requiresPrompt && prompt) {
-      const formData = new FormData();
-      formData.append('userPrompt', prompt);
-      const result = await getGeneratedPrompt(formData);
-      if (result.success && result.prompt) {
-        finalPrompt = result.prompt;
-      }
-    } else if (requiresPrompt && !prompt) {
-      toast({
-        variant: 'destructive',
-        title: 'Prompt Required',
-        description: 'This transformation type requires a prompt.',
-      });
-      setIsProcessing(false);
-      throw new Error('Prompt required for this transformation.');
-    } else {
-        finalPrompt = label;
-    }
-
     try {
-      const dataUri = await fileToDataUri(file);
-      setProgress(25);
-      
-      const transformFormData = new FormData();
-      transformFormData.append('photoDataUri', dataUri);
-      transformFormData.append('prompt', finalPrompt);
-      const transformResult = await getTransformedImage(transformFormData);
-      setProgress(50);
-
-      if (!transformResult.success || !transformResult.transformedPhotoDataUri) {
-        throw new Error(
-          transformResult.error || 'Could not transform the image.'
-        );
+      let finalPrompt = prompt;
+      if (requiresPrompt && prompt) {
+        finalPrompt = await getGeneratedPrompt({ userPrompt: prompt });
+      } else if (requiresPrompt && !prompt) {
+        throw new Error('This transformation type requires a prompt.');
+      } else {
+        finalPrompt = label;
       }
+      setProgress(20);
 
+      const dataUri = await fileToDataUri(file);
+      setProgress(30);
+
+      const transformedPhotoDataUri = await getTransformedImage({
+        photoDataUri: dataUri,
+        prompt: finalPrompt,
+      });
+      setProgress(50);
+      
+      if (!transformedPhotoDataUri) {
+        throw new Error('The transformation failed to produce an image.');
+      }
+      
       // We only save to storage and DB if the user is logged in
       if (user) {
         const timestamp = new Date();
         const timestampString = timestamp.toISOString();
-        const originalFilePath = `dth-storage/${user!.uid}/${timestampString}_original_${file.name}`;
-        const transformedBlob = dataUriToBlob(transformResult.transformedPhotoDataUri);
-        const transformedFilePath = `dth-storage/${user!.uid}/${timestampString}_transformed_${file.name}`;
-        
+        const originalFilePath = `dth-storage/${
+          user!.uid
+        }/${timestampString}_original_${file.name}`;
+        const transformedBlob = dataUriToBlob(transformedPhotoDataUri);
+        const transformedFilePath = `dth-storage/${
+          user!.uid
+        }/${timestampString}_transformed_${file.name}`;
+
         setProgress(60);
         const [originalImageURL, transformedImageURL] = await Promise.all([
           uploadFile(file, originalFilePath),
@@ -197,8 +201,7 @@ export function useImageTransformations() {
       }
       setProgress(100);
 
-      return transformResult.transformedPhotoDataUri;
-
+      return transformedPhotoDataUri;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
