@@ -232,7 +232,7 @@ export default function ImageProcessor() {
                   disabled={isProcessing}
                 />
                 {previewUrl ? (
-                  <div className="relative w-full h-full">
+                  <div className="relative w-full h-full min-h-[250px]">
                     <Image
                       src={previewUrl}
                       alt="Selected preview"
@@ -359,13 +359,15 @@ export default function ImageProcessor() {
                 </div>
               )}
               {transformedUrl && (
-                <Image
-                  src={transformedUrl}
-                  alt="Transformed image"
-                  layout="fill"
-                  objectFit="contain"
-                  className="rounded-md"
-                />
+                 <div className="relative w-full h-full min-h-[400px]">
+                    <Image
+                      src={transformedUrl}
+                      alt="Transformed image"
+                      layout="fill"
+                      objectFit="contain"
+                      className="rounded-md"
+                    />
+                 </div>
               )}
             </div>
           </div>
