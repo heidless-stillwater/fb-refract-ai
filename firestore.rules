@@ -1,19 +1,55 @@
+/**
+ * @fileOverview Firestore Security Rules for Image Transformation App.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for images. Each user, identified by their Firebase Authentication UID,
+ * has exclusive access to their own image data. Data schema validation is relaxed for prototyping.
+ *
+ * Data Structure:
+ * All image data is nested under /users/{userId}/images/{imageId}, providing a clear ownership hierarchy.
+ *
+ * Key Security Decisions:
+ * - Users can only access and manage images associated with their own UID.
+ * - The 'list' operation is restricted to the owner of the images.
+ * - Data validation is minimized to essential fields only, focusing on user ID consistency.
+ * - Denormalization: The userId is implicitly denormalized via the path.  The image documents under `/users/{userId}` are considered owned by `userId`.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 12, 5);
+    /**
+     * @description Enforces access control for images stored under a user's profile.
+     * @path /users/{userId}/images/{imageId}
+     * @allow (create) - Allows a user to create an image if the userId matches their auth UID and imageId is present in the document.
+     * @allow (get, list) - Allows a user to read their own images.
+     * @allow (update, delete) - Allows a user to update or delete their own images if they exist.
+     * @deny (create) - Denies creation if the userId does not match the auth UID.
+     * @deny (update, delete) - Denies updating or deleting images that do not exist or do not belong to the user.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, validates relational integrity between documents.
+     */
+    match /users/{userId}/images/{imageId} {
+      // Helpers:
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      // Permissions:
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.id == imageId;
+
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
