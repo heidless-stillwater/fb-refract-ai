@@ -48,8 +48,12 @@ const transformImageFlow = ai.defineFlow(
       },
     });
 
+    if (!media?.url) {
+      throw new Error('Image transformation failed to produce an image.');
+    }
+
     return {
-      transformedPhotoDataUri: media.url!,
+      transformedPhotoDataUri: media.url,
     };
   }
 );
