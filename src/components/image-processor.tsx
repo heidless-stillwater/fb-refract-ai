@@ -21,8 +21,7 @@ import {
   Upload,
   Sparkles,
   Wand2,
-  ChevronDown,
-  RefreshCw,
+  Download,
   Info,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -36,6 +35,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { HistoryGallery } from './history-gallery';
+import Link from 'next/link';
 
 const transformationOptions = [
   {
@@ -197,7 +197,13 @@ export default function ImageProcessor() {
         description: 'Your image has been successfully transformed.',
       });
     } catch (error) {
-      // The hook handles the error toast
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred.';
+      toast({
+        variant: 'destructive',
+        title: 'Transformation Failed',
+        description: errorMessage,
+      });
     }
   };
 
@@ -220,7 +226,7 @@ export default function ImageProcessor() {
             {/* Input Column */}
             <div className="space-y-6">
               <div
-                className="relative border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary transition-colors min-h-[250px] flex flex-col items-center justify-center bg-muted/20"
+                className="relative border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary transition-colors min-h-[250px] flex flex-col items-center justify-center bg-muted/20 group"
                 onClick={() => document.getElementById('file-upload')?.click()}
               >
                 <Input
@@ -240,6 +246,14 @@ export default function ImageProcessor() {
                       objectFit="contain"
                       className="rounded-md"
                     />
+                    <Link
+                      href={previewUrl}
+                      download={selectedFile?.name ?? 'original-image'}
+                      className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Download className="w-8 h-8" />
+                    </Link>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -342,7 +356,7 @@ export default function ImageProcessor() {
             </div>
 
             {/* Output Column */}
-            <div className="relative border-2 border-border rounded-lg min-h-[400px] flex items-center justify-center bg-muted/20 overflow-hidden">
+            <div className="relative border-2 border-border rounded-lg min-h-[400px] flex items-center justify-center bg-muted/20 overflow-hidden group">
               {isProcessing && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10">
                   <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -367,6 +381,13 @@ export default function ImageProcessor() {
                       objectFit="contain"
                       className="rounded-md"
                     />
+                    <Link
+                      href={transformedUrl}
+                      download={`transformed-${selectedFile?.name ?? 'image'}`}
+                      className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md"
+                    >
+                      <Download className="w-8 h-8" />
+                    </Link>
                  </div>
               )}
             </div>

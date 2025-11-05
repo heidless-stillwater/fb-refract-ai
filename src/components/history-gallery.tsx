@@ -7,7 +7,8 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, CornerDownRight } from 'lucide-react';
+import { ArrowRight, CornerDownRight, Download } from 'lucide-react';
+import Link from 'next/link';
 
 export type TransformationHistoryItem = {
   id: string;
@@ -58,7 +59,7 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                 <p className="text-sm font-medium text-center text-muted-foreground">
                   Original
                 </p>
-                <div className="rounded-lg overflow-hidden border-2 border-transparent">
+                <div className="rounded-lg overflow-hidden border-2 border-transparent relative group">
                   <Image
                     src={item.originalUrl}
                     alt="Original image for transformation"
@@ -67,6 +68,13 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                     className="object-cover w-full h-auto aspect-video rounded-md"
                     data-ai-hint={item.originalHint}
                   />
+                   <Link
+                      href={item.originalUrl}
+                      download={`original-${item.id}`}
+                      className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md"
+                    >
+                      <Download className="w-8 h-8" />
+                    </Link>
                 </div>
               </div>
               <div className="hidden md:block text-center">
@@ -79,7 +87,7 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                 <p className="text-sm font-medium text-center text-muted-foreground">
                   Transformed
                 </p>
-                <div className="rounded-lg overflow-hidden border-2 border-primary/50">
+                <div className="rounded-lg overflow-hidden border-2 border-primary/50 relative group">
                   <Image
                     src={item.transformedUrl}
                     alt="Transformed image"
@@ -88,6 +96,13 @@ export function HistoryGallery({ history }: HistoryGalleryProps) {
                     className="object-cover w-full h-auto aspect-video rounded-md"
                     data-ai-hint={item.transformedHint}
                   />
+                   <Link
+                      href={item.transformedUrl}
+                      download={`transformed-${item.id}`}
+                      className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-md"
+                    >
+                      <Download className="w-8 h-8" />
+                    </Link>
                 </div>
               </div>
             </CardContent>
