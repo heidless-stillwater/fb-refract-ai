@@ -5,6 +5,7 @@ import Image from 'next/image';
 import {
   getTransformationRecommendations,
   getGeneratedPrompt,
+  getTransformedImage,
 } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -85,7 +86,7 @@ export default function ImageTransformer() {
           }
           return prev + 5;
         });
-      }, 150);
+      }, 500);
       return () => clearInterval(interval);
     }
   }, [isProcessing]);
@@ -130,48 +131,87 @@ export default function ImageTransformer() {
 
   const handleTransform = async () => {
     if (!selectedFile) return;
+
     setIsProcessing(true);
     setProgress(10);
+    setTransformedUrl(null);
 
     let finalPrompt = userPrompt;
     const transformType = TRANSFORMATION_TYPES.find(
       t => t.id === selectedTransform
     );
-
-    if (transformType?.requiresPrompt && userPrompt) {
-      try {
+    
+    if(!transformType) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Invalid transformation type selected.',
+      });
+      setIsProcessing(false);
+      return;
+    }
+    
+    if (transformType.requiresPrompt && userPrompt) {
         const formData = new FormData();
         formData.append('userPrompt', userPrompt);
         const result = await getGeneratedPrompt(formData);
         if (result.success && result.prompt) {
           finalPrompt = result.prompt;
         }
-      } catch (e) {
-        // Continue with user prompt if generation fails
-      }
+    } else if (transformType.requiresPrompt && !userPrompt) {
+        toast({
+            variant: 'destructive',
+            title: 'Prompt Required',
+            description: 'This transformation type requires a prompt.',
+        });
+        setIsProcessing(false);
+        return;
+    } else {
+      finalPrompt = transformType.label;
     }
 
-    setTimeout(() => {
-      const seed = Math.random().toString(36).substring(7);
-      const newTransformedUrl = `https://picsum.photos/seed/${seed}/800/600`;
-      setTransformedUrl(newTransformedUrl);
+    try {
+      const dataUri = await fileToDataUri(selectedFile);
+      const formData = new FormData();
+      formData.append('photoDataUri', dataUri);
+      formData.append('prompt', finalPrompt);
+      
+      const result = await getTransformedImage(formData);
 
-      const newHistoryItem: TransformationHistoryItem = {
-        id: new Date().toISOString(),
-        originalUrl: previewUrl!,
-        transformedUrl: newTransformedUrl,
-        transformationType: transformType?.label || 'Transformation',
-        prompt: transformType?.requiresPrompt ? finalPrompt : undefined,
-        originalHint: 'uploaded image',
-        transformedHint: `${selectedTransform} ${finalPrompt}`,
-      };
-      setHistory(prev => [newHistoryItem, ...prev]);
+      if (result.success && result.transformedPhotoDataUri) {
+        setTransformedUrl(result.transformedPhotoDataUri);
 
+        const newHistoryItem: TransformationHistoryItem = {
+          id: new Date().toISOString(),
+          originalUrl: previewUrl!,
+          transformedUrl: result.transformedPhotoDataUri,
+          transformationType: transformType?.label || 'Transformation',
+          prompt: transformType?.requiresPrompt ? finalPrompt : undefined,
+          originalHint: 'uploaded image',
+          transformedHint: `${selectedTransform} ${finalPrompt}`,
+        };
+        setHistory(prev => [newHistoryItem, ...prev]);
+
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Transformation Failed',
+          description: result.error || 'Could not transform the image.',
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'An unknown error occurred during transformation.',
+      });
+    } finally {
       setProgress(100);
       setTimeout(() => {
         setIsProcessing(false);
       }, 500);
-    }, 3000);
+    }
   };
 
   const reset = () => {
@@ -323,7 +363,7 @@ export default function ImageTransformer() {
             <Button
               size="lg"
               onClick={handleTransform}
-              disabled={isProcessing || (currentTransform?.requiresPrompt && !userPrompt)}
+              disabled={isProcessing}
               className="w-full"
             >
               {isProcessing ? (
@@ -337,6 +377,20 @@ export default function ImageTransformer() {
           </CardContent>
         </Card>
       </div>
+
+      {isProcessing && !transformedUrl && (
+         <Card className="mt-8 shadow-xl">
+          <CardHeader>
+            <CardTitle className="font-headline text-3xl text-center">
+              Generating new image...
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center items-center flex-col gap-4">
+            <Loader2 className="h-16 w-16 animate-spin text-primary" />
+            <p className="text-muted-foreground">This may take a moment.</p>
+          </CardContent>
+        </Card>
+      )}
 
       {transformedUrl && (
         <Card className="mt-8 shadow-xl">

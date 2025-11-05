@@ -2,6 +2,7 @@
 
 import { generateTransformationPrompt } from '@/ai/flows/generate-transformation-prompt';
 import { recommendTransformationType } from '@/ai/flows/recommend-transformation-type';
+import { transformImage } from '@/ai/flows/transform-image';
 import { z } from 'zod';
 
 const recommendSchema = z.object({
@@ -52,6 +53,35 @@ export async function getGeneratedPrompt(formData: FormData) {
     });
 
     return { success: true, prompt: result.transformationPrompt };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { success: false, error: errorMessage };
+  }
+}
+
+const transformImageSchema = z.object({
+  photoDataUri: z.string().startsWith('data:image/'),
+  prompt: z.string(),
+});
+
+export async function getTransformedImage(formData: FormData) {
+  try {
+    const validatedData = transformImageSchema.safeParse({
+      photoDataUri: formData.get('photoDataUri'),
+      prompt: formData.get('prompt'),
+    });
+
+    if (!validatedData.success) {
+      return { success: false, error: 'Invalid input for transformation.' };
+    }
+
+    const result = await transformImage({
+      photoDataUri: validatedData.data.photoDataUri,
+      prompt: validatedData.data.prompt,
+    });
+
+    return { success: true, transformedPhotoDataUri: result.transformedPhotoDataUri };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'An unknown error occurred.';
