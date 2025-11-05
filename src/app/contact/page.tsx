@@ -23,8 +23,12 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Mail, User as UserIcon } from 'lucide-react';
 import { submitContactForm } from '@/app/actions';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { formatDistanceToNow } from 'date-fns';
 
 const contactFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -36,6 +40,62 @@ const contactFormSchema = z.object({
 });
 
 type ContactFormValues = z.infer<typeof contactFormSchema>;
+
+function MessageList() {
+  const firestore = useFirestore();
+  const messagesQuery = useMemoFirebase(
+    () =>
+      query(
+        collection(firestore, 'dnd_contactMessages'),
+        orderBy('submittedAt', 'desc'),
+        limit(20)
+      ),
+    [firestore]
+  );
+  const { data: messages, isLoading } = useCollection<any>(messagesQuery);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-24">
+        <Loader2 className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!messages || messages.length === 0) {
+    return <p className="text-center text-muted-foreground mt-4">No messages yet.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {messages.map(msg => (
+        <Card key={msg.id} className="shadow-sm">
+          <CardContent className="p-4 flex gap-4">
+            <Avatar>
+              <AvatarFallback>
+                {msg.name?.[0].toUpperCase() ?? <UserIcon />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <div className="flex justify-between items-center">
+                <p className="font-semibold">{msg.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {msg.submittedAt?.toDate
+                    ? formatDistanceToNow(msg.submittedAt.toDate(), { addSuffix: true })
+                    : ''}
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Mail className="h-3 w-3" /> {msg.email}
+              </p>
+              <p className="mt-2 text-foreground">{msg.message}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,11 +118,11 @@ export default function ContactPage() {
     });
 
     const result = await submitContactForm(formData);
-    
+
     if (result.success) {
       toast({
         title: 'Message Sent!',
-        description: "Thanks for reaching out. We'll get back to you shortly.",
+        description: "Thanks for reaching out. We've received your message.",
       });
       form.reset();
     } else {
@@ -77,73 +137,79 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="container max-w-2xl mx-auto py-12 px-4">
-      <Card className="shadow-2xl">
-        <CardHeader>
-          <CardTitle className="font-headline text-3xl">Contact Us</CardTitle>
-          <CardDescription>
-            Have a question or feedback? Fill out the form below to get in touch.
-          </CardDescription>
-        </CardHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Your Name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="message"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Message</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Your message..."
-                        className="resize-none"
-                        rows={6}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <Send />
-                )}
-                Send Message
-              </Button>
-            </CardContent>
-          </form>
-        </Form>
-      </Card>
+    <div className="container max-w-4xl mx-auto py-12 px-4 grid md:grid-cols-2 gap-12 items-start">
+      <div>
+        <Card className="shadow-2xl">
+          <CardHeader>
+            <CardTitle className="font-headline text-3xl">Contact Us</CardTitle>
+            <CardDescription>
+              Have a question or feedback? Fill out the form below to get in touch.
+            </CardDescription>
+          </CardHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              <CardContent className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Your Name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="you@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="message"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Message</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Your message..."
+                          className="resize-none"
+                          rows={6}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={isSubmitting} className="w-full">
+                  {isSubmitting ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <Send />
+                  )}
+                  Send Message
+                </Button>
+              </CardContent>
+            </form>
+          </Form>
+        </Card>
+      </div>
+      <div>
+        <h2 className="font-headline text-3xl mb-6">Recent Messages</h2>
+        <MessageList />
+      </div>
     </div>
   );
 }

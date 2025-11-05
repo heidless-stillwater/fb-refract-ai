@@ -4,6 +4,8 @@ import { generateTransformationPrompt } from '@/ai/flows/generate-transformation
 import { recommendTransformationType } from '@/ai/flows/recommend-transformation-type';
 import { transformImage } from '@/ai/flows/transform-image';
 import { z } from 'zod';
+import { getFirestore, collection, addDoc } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
 const recommendSchema = z.object({
   photoDataUri: z.string().startsWith('data:image/'),
@@ -104,7 +106,6 @@ export async function submitContactForm(formData: FormData) {
     });
 
     if (!validatedData.success) {
-      // Create a detailed error message from Zod issues.
       const errorDetails = validatedData.error.issues
         .map(issue => `${issue.path.join('.')}: ${issue.message}`)
         .join('; ');
@@ -114,15 +115,13 @@ export async function submitContactForm(formData: FormData) {
       };
     }
     
-    // In a real application, you would process the data here,
-    // e.g., send an email or save to a database.
-    console.log('Contact form submitted:', validatedData.data);
-
-    // Simulate a potential server-side error for demonstration.
-    if (validatedData.data.name.toLowerCase() === 'error') {
-        throw new Error('This is a simulated server error for demonstration.');
-    }
-
+    // Server-side Firebase initialization
+    const { firestore } = initializeFirebase();
+    
+    await addDoc(collection(firestore, 'dnd_contactMessages'), {
+      ...validatedData.data,
+      submittedAt: new Date(),
+    });
 
     return { success: true };
 
