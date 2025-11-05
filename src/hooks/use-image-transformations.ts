@@ -14,7 +14,7 @@ import {
   orderBy,
   limit,
 } from 'firebase/firestore';
-import { useFirestore, useCollection, useUser } from '@/firebase';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import {
   getTransformationRecommendations,
   getGeneratedPrompt,
@@ -58,13 +58,14 @@ export function useImageTransformations() {
   const { user } = useUser();
   const storage = getStorage();
 
-  const transformationsQuery = user
-    ? query(
-        collection(firestore, 'transformedImages'),
-        orderBy('createdAt', 'desc'),
-        limit(10)
-      )
-    : null;
+  const transformationsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(
+      collection(firestore, 'transformedImages'),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    )
+  }, [user, firestore]);
 
   const { data: historyData } = useCollection<any>(transformationsQuery);
 
