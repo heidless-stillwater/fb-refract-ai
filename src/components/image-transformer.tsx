@@ -229,189 +229,12 @@ export default function ImageTransformer() {
     t => t.id === selectedTransform
   );
 
-  if (!previewUrl) {
-    return (
-      <div className="text-center">
-        <Card className="max-w-xl mx-auto shadow-xl">
-          <CardHeader>
-            <CardTitle className="font-headline text-3xl">
-              Upload Your Image
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center space-y-4 p-8 border-2 border-dashed border-border rounded-lg">
-              <Upload className="w-16 h-16 text-muted-foreground" />
-              <p className="text-muted-foreground">
-                Click the button to select an image from your device.
-              </p>
-              <Button
-                size="lg"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isPending}
-              >
-                {isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Wand2 className="mr-2 h-4 w-4" />
-                )}
-                Choose Image
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        <HistoryGallery history={history} />
-      </div>
-    );
-  }
+  const handleChooseImageClick = () => {
+    fileInputRef.current?.click();
+  };
 
   return (
     <div>
-      <div className="grid md:grid-cols-2 gap-8">
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="font-headline text-2xl">
-              Your Image
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="relative aspect-video rounded-lg overflow-hidden border">
-              <Image
-                src={previewUrl}
-                alt="Selected preview"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={reset}
-              className="mt-4"
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Start Over
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="font-headline text-2xl">
-              Transformation
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <Label className="text-lg font-medium">
-                Choose Transformation
-              </Label>
-              {isGettingRecs && (
-                <div className="flex items-center text-sm text-muted-foreground mt-2">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing image for recommendations...
-                </div>
-              )}
-              <RadioGroup
-                value={selectedTransform}
-                onValueChange={setSelectedTransform}
-                className="mt-2 grid grid-cols-2 gap-2"
-              >
-                {TRANSFORMATION_TYPES.map(type => (
-                  <div key={type.id} className="relative">
-                    <Label
-                      htmlFor={type.id}
-                      className={`flex items-center p-3 rounded-md border-2 cursor-pointer transition-colors ${
-                        selectedTransform === type.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      <RadioGroupItem value={type.id} id={type.id} />
-                      <span className="ml-3 font-medium">{type.label}</span>
-                    </Label>
-                    {recommendations.includes(type.id) && (
-                      <Badge
-                        variant="secondary"
-                        className="absolute -top-2 -right-2 text-accent-foreground bg-accent pointer-events-none"
-                      >
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        Rec
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-
-            {currentTransform?.requiresPrompt && (
-              <div>
-                <Label htmlFor="prompt" className="text-lg font-medium">
-                  Style Prompt
-                </Label>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Describe the style you want to apply (e.g., "Van Gogh painting", "Cyberpunk").
-                </p>
-                <Input
-                  id="prompt"
-                  value={userPrompt}
-                  onChange={e => setUserPrompt(e.target.value)}
-                  placeholder="e.g., in the style of a comic book"
-                />
-              </div>
-            )}
-
-            <Button
-              size="lg"
-              onClick={handleTransform}
-              disabled={isProcessing}
-              className="w-full"
-            >
-              {isProcessing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Wand2 className="mr-2 h-4 w-4" />
-              )}
-              Transform Image
-            </Button>
-            {isProcessing && <Progress value={progress} className="w-full" />}
-          </CardContent>
-        </Card>
-      </div>
-
-      {isProcessing && !transformedUrl && (
-         <Card className="mt-8 shadow-xl">
-          <CardHeader>
-            <CardTitle className="font-headline text-3xl text-center">
-              Generating new image...
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex justify-center items-center flex-col gap-4">
-            <Loader2 className="h-16 w-16 animate-spin text-primary" />
-            <p className="text-muted-foreground">This may take a moment.</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {transformedUrl && (
-        <Card className="mt-8 shadow-xl">
-          <CardHeader>
-            <CardTitle className="font-headline text-3xl text-center">
-              Transformation Result
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex justify-center">
-            <div className="relative aspect-video w-full max-w-2xl rounded-lg overflow-hidden border-2 border-primary">
-              <Image
-                src={transformedUrl}
-                alt="Transformed result"
-                fill
-                className="object-contain"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <input
         type="file"
         ref={fileInputRef}
@@ -419,8 +242,187 @@ export default function ImageTransformer() {
         className="hidden"
         accept="image/*"
       />
+      {!previewUrl ? (
+        <div className="text-center">
+          <Card className="max-w-xl mx-auto shadow-xl">
+            <CardHeader>
+              <CardTitle className="font-headline text-3xl">
+                Upload Your Image
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center space-y-4 p-8 border-2 border-dashed border-border rounded-lg">
+                <Upload className="w-16 h-16 text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  Click the button to select an image from your device.
+                </p>
+                <Button
+                  size="lg"
+                  onClick={handleChooseImageClick}
+                  disabled={isPending}
+                >
+                  {isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="mr-2 h-4 w-4" />
+                  )}
+                  Choose Image
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <HistoryGallery history={history} />
+        </div>
+      ) : (
+        <div>
+          <div className="grid md:grid-cols-2 gap-8">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="font-headline text-2xl">
+                  Your Image
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative aspect-video rounded-lg overflow-hidden border">
+                  <Image
+                    src={previewUrl}
+                    alt="Selected preview"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={reset}
+                  className="mt-4"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Start Over
+                </Button>
+              </CardContent>
+            </Card>
 
-      <HistoryGallery history={history} />
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="font-headline text-2xl">
+                  Transformation
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <Label className="text-lg font-medium">
+                    Choose Transformation
+                  </Label>
+                  {isGettingRecs && (
+                    <div className="flex items-center text-sm text-muted-foreground mt-2">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing image for recommendations...
+                    </div>
+                  )}
+                  <RadioGroup
+                    value={selectedTransform}
+                    onValueChange={setSelectedTransform}
+                    className="mt-2 grid grid-cols-2 gap-2"
+                  >
+                    {TRANSFORMATION_TYPES.map(type => (
+                      <div key={type.id} className="relative">
+                        <Label
+                          htmlFor={type.id}
+                          className={`flex items-center p-3 rounded-md border-2 cursor-pointer transition-colors ${
+                            selectedTransform === type.id
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                        >
+                          <RadioGroupItem value={type.id} id={type.id} />
+                          <span className="ml-3 font-medium">{type.label}</span>
+                        </Label>
+                        {recommendations.includes(type.id) && (
+                          <Badge
+                            variant="secondary"
+                            className="absolute -top-2 -right-2 text-accent-foreground bg-accent pointer-events-none"
+                          >
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Rec
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                {currentTransform?.requiresPrompt && (
+                  <div>
+                    <Label htmlFor="prompt" className="text-lg font-medium">
+                      Style Prompt
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Describe the style you want to apply (e.g., "Van Gogh painting", "Cyberpunk").
+                    </p>
+                    <Input
+                      id="prompt"
+                      value={userPrompt}
+                      onChange={e => setUserPrompt(e.target.value)}
+                      placeholder="e.g., in the style of a comic book"
+                    />
+                  </div>
+                )}
+
+                <Button
+                  size="lg"
+                  onClick={handleTransform}
+                  disabled={isProcessing}
+                  className="w-full"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="mr-2 h-4 w-4" />
+                  )}
+                  Transform Image
+                </Button>
+                {isProcessing && <Progress value={progress} className="w-full" />}
+              </CardContent>
+            </Card>
+          </div>
+
+          {isProcessing && !transformedUrl && (
+             <Card className="mt-8 shadow-xl">
+              <CardHeader>
+                <CardTitle className="font-headline text-3xl text-center">
+                  Generating new image...
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex justify-center items-center flex-col gap-4">
+                <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                <p className="text-muted-foreground">This may take a moment.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {transformedUrl && (
+            <Card className="mt-8 shadow-xl">
+              <CardHeader>
+                <CardTitle className="font-headline text-3xl text-center">
+                  Transformation Result
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex justify-center">
+                <div className="relative aspect-video w-full max-w-2xl rounded-lg overflow-hidden border-2 border-primary">
+                  <Image
+                    src={transformedUrl}
+                    alt="Transformed result"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          <HistoryGallery history={history} />
+        </div>
+      )}
     </div>
   );
 }
