@@ -130,20 +130,25 @@ function MessageList() {
                   {isImage(msg.attachmentURL) ? (
                     <div className="relative w-48 h-32 rounded-lg overflow-hidden border">
                       <Image src={msg.attachmentURL} alt={msg.attachmentFilename ?? 'Attachment'} layout="fill" objectFit="cover" />
-                      <Link href={msg.attachmentURL} passHref>
-                          <a target="_blank" rel="noopener noreferrer" className="absolute inset-0 bg-black bg-opacity-25 flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity">
-                            View Full Image
-                          </a>
+                      <Link
+                        href={msg.attachmentURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute inset-0 bg-black bg-opacity-25 flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity"
+                      >
+                        View Full Image
                       </Link>
                     </div>
                   ) : (
                     <Button asChild variant="outline" size="sm">
-                       <Link href={msg.attachmentURL} passHref>
-                          <a target="_blank" rel="noopener noreferrer">
-                            <FileIcon className="mr-2" />
-                            {msg.attachmentFilename ?? 'Download Attachment'}
-                          </a>
-                      </Link>
+                       <Link
+                          href={msg.attachmentURL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <FileIcon className="mr-2" />
+                          {msg.attachmentFilename ?? 'Download Attachment'}
+                        </Link>
                     </Button>
                   )}
                  </div>
