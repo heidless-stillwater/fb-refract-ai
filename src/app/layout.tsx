@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { AppProviders } from '@/components/providers';
 import { Header } from '@/components/header';
 import './globals.css';
+import { FirebaseClientProvider } from '@/firebase';
 
 export const metadata: Metadata = {
   title: 'Refract AI',
@@ -28,12 +29,14 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased min-h-screen bg-background">
-        <AppProviders>
-          <div className="relative flex min-h-dvh flex-col">
-            <Header />
-            <main className="flex-1">{children}</main>
-          </div>
-        </AppProviders>
+        <FirebaseClientProvider>
+          <AppProviders>
+            <div className="relative flex min-h-dvh flex-col">
+              <Header />
+              <main className="flex-1">{children}</main>
+            </div>
+          </AppProviders>
+        </FirebaseClientProvider>
       </body>
     </html>
   );
