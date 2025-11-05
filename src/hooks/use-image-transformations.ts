@@ -165,10 +165,11 @@ export function useImageTransformations() {
 
       // We only save to storage and DB if the user is logged in
       if (user) {
-        const timestamp = new Date().toISOString();
-        const originalFilePath = `dth-storage/${user!.uid}/${timestamp}_original_${file.name}`;
+        const timestamp = new Date();
+        const timestampString = timestamp.toISOString();
+        const originalFilePath = `dth-storage/${user!.uid}/${timestampString}_original_${file.name}`;
         const transformedBlob = dataUriToBlob(transformResult.transformedPhotoDataUri);
-        const transformedFilePath = `dth-storage/${user!.uid}/${timestamp}_transformed_${file.name}`;
+        const transformedFilePath = `dth-storage/${user!.uid}/${timestampString}_transformed_${file.name}`;
         
         setProgress(60);
         const [originalImageURL, transformedImageURL] = await Promise.all([
@@ -183,7 +184,15 @@ export function useImageTransformations() {
           transformedImageURL,
           transformationType: label,
           transformationParameters: requiresPrompt ? finalPrompt : null,
-          createdAt: new Date(),
+          createdAt: timestamp,
+        });
+
+        await addDoc(collection(firestore, 'imageRecords'), {
+          userId: user.uid,
+          originalImageUrl: originalImageURL,
+          transformedImageUrl: transformedImageURL,
+          originalFileName: file.name,
+          timestamp: timestamp,
         });
       }
       setProgress(100);
